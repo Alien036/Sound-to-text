@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   Settings2,
+  Sparkles,
   Upload,
   Users,
   Workflow,
@@ -27,6 +28,7 @@ const NAV = [
   { href: "/dashboard", label: "Genel bakış", icon: LayoutDashboard },
   { href: "/upload", label: "Yeni yükleme", icon: Upload },
   { href: "/jobs", label: "İşlerim", icon: ListChecks },
+  { href: "/paketler", label: "Paketler", icon: Sparkles },
   { href: "/credits", label: "Krediler", icon: Coins },
 ];
 
@@ -44,7 +46,10 @@ function NavLink({
   pillId,
 }: (typeof NAV)[number] & { pillId: string }) {
   const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(href + "/");
+  const active =
+    pathname === href ||
+    pathname.startsWith(href + "/") ||
+    (href === "/paketler" && (pathname === "/packages" || pathname.startsWith("/packages/")));
   return (
     <Link
       href={href}
@@ -136,6 +141,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { balance } = useBalance();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const isPackagesActive =
+    pathname === "/paketler" ||
+    pathname.startsWith("/paketler/") ||
+    pathname === "/packages" ||
+    pathname.startsWith("/packages/");
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -181,6 +191,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Button>
         <Logo className="lg:hidden" />
         <div className="ml-auto flex items-center gap-3">
+          <Link
+            href="/paketler"
+            className={cn(
+              "group inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium shadow-[0_1px_2px_rgba(22,22,63,0.03)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm",
+              isPackagesActive
+                ? "border-brand-200 bg-brand-50 text-brand-700"
+                : "border-ink-200/70 bg-white text-ink-900 hover:border-ink-300",
+            )}
+          >
+            <Sparkles className="size-4 text-brand-500 transition-transform duration-200 group-hover:scale-110" />
+            <span>Paketler</span>
+          </Link>
           <CreditBadge balance={balance} />
           <Button asChild size="sm" className="hidden sm:inline-flex">
             <Link href="/upload">
