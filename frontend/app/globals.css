@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/*
+ * Üç ana renk:
+ *   ink    — mürekkep laciverti (metin, yan menü, koyu yüzeyler)
+ *   brand  — indigo (birincil eylemler, vurgular)
+ *   accent — mercan (uyarı, hata, dikkat çekilecek yerler)
+ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-ink-50: #f5f5fa;
+  --color-ink-100: #ebebf3;
+  --color-ink-200: #d6d6e4;
+  --color-ink-300: #b0b0c8;
+  --color-ink-400: #8484a3;
+  --color-ink-500: #5f5f80;
+  --color-ink-600: #45456a;
+  --color-ink-700: #2f2f55;
+  --color-ink-800: #212148;
+  --color-ink-900: #16163f;
+
+  --color-brand-50: #f0f0fd;
+  --color-brand-100: #e2e2fb;
+  --color-brand-200: #c8c8f6;
+  --color-brand-300: #a5a5ee;
+  --color-brand-400: #8080e4;
+  --color-brand-500: #5b5bd6;
+  --color-brand-600: #4848bf;
+  --color-brand-700: #3a3a9c;
+
+  --color-accent-50: #fff4f0;
+  --color-accent-100: #ffe6dd;
+  --color-accent-200: #ffcab8;
+  --color-accent-300: #ffa98d;
+  --color-accent-400: #ff8f70;
+  --color-accent-500: #ff7a59;
+  --color-accent-600: #e85d3b;
+  --color-accent-700: #c2462a;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--color-ink-50);
+  color: var(--color-ink-900);
+}
+
+::selection {
+  background: var(--color-brand-200);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
