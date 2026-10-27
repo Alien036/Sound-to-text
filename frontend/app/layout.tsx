@@ -6,7 +6,7 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: { default: "Sesyaz — Sesi metne dönüştür", template: "%s · Sesyaz" },
+  title: { default: "Etheria — Sesi metne dönüştür", template: "%s · Etheria" },
   description: "Ses ve video dosyalarınızı dakikalar içinde zaman damgalı metne dönüştürün.",
 };
 

@@ -5,11 +5,13 @@ import type {
   EstimateResponse,
   Job,
   JobStatus,
+  LicenseKey,
   MeResponse,
   Paginated,
   Pricing,
   ResultFormat,
   SignUploadResponse,
+  UnclearResponse,
 } from "./types";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080").replace(/\/$/, "");
@@ -105,6 +107,13 @@ function toPage<T>(res: unknown, key: string): Paginated<T> {
 export const api = {
   me: () => request<MeResponse>("GET", "/me"),
 
+  /** Yasal metin onayı; backend sürüm, zaman ve IP ile ispat kaydı tutar. */
+  acceptTerms: (version: string) => request<MeResponse>("POST", "/me/terms", { body: { version } }),
+
+  /** Lisans anahtarını etkinleştirir; anahtardaki kredi bakiyeye eklenir. */
+  redeemLicense: (key: string) =>
+    request<{ credits_added: number; credits_balance: number }>("POST", "/me/license", { body: { key } }),
+
   /** Herkese açık fiyat/limit bilgisi (giriş gerektirmez). */
   pricing: () => request<Partial<Pricing>>("GET", "/pricing"),
 
@@ -136,6 +145,17 @@ export const api = {
       query: { format },
     }),
 
+  /** Modelin [anlaşılmıyor] yazdığı yerler (zaman sırasıyla) ve oynatma adresi. */
+  unclear: (id: string) => request<UnclearResponse>("GET", `/jobs/${encodeURIComponent(id)}/unclear`),
+
+  /** Bir yeri doldurur; boş/null düzeltmeyi geri alır. Tüm indirme dosyaları yeniden üretilir. */
+  correctUnclear: (id: string, spotId: string, text: string | null) =>
+    request<{ total: number; resolved: number }>(
+      "PUT",
+      `/jobs/${encodeURIComponent(id)}/unclear/${encodeURIComponent(spotId)}`,
+      { body: { text } },
+    ),
+
   deleteJob: (id: string) => request<void>("DELETE", `/jobs/${encodeURIComponent(id)}`),
 
   transactions: async (query: { limit?: number; cursor?: string | null } = {}) =>
@@ -153,9 +173,14 @@ export const api = {
       request<AdminUser>("GET", `/admin/users/${encodeURIComponent(uid)}`),
     adjustCredits: (uid: string, body: { amount: number; note?: string }) =>
       request<{ credits_balance: number }>("POST", `/admin/users/${encodeURIComponent(uid)}/credits`, { body }),
-    /** Ödeme entegrasyonu gelene kadar Pro'yu yönetici elle başlatır/iptal eder. */
-    setSubscription: (uid: string, body: { plan: "pro" | null }) =>
-      request<AdminUser>("POST", `/admin/users/${encodeURIComponent(uid)}/subscription`, { body }),
+    /** Satılacak anahtarları üretir; her biri tek kullanımlık, `credits` kadar yükler. */
+    createLicenseKeys: (body: { package?: string; credits?: number; count: number; note?: string }) =>
+      request<LicenseKey[]>("POST", "/admin/license-keys", { body }),
+    licenseKeys: async (query: { limit?: number; cursor?: string | null } = {}) =>
+      toPage<LicenseKey>(await request("GET", "/admin/license-keys", { query }), "keys"),
+    /** Yalnızca kullanılmamış anahtar iptal edilebilir. */
+    revokeLicenseKey: (key: string) =>
+      request<LicenseKey>("DELETE", `/admin/license-keys/${encodeURIComponent(key)}`),
     jobs: async (query: { status?: string; uid?: string; cursor?: string | null } = {}) =>
       toPage<Job>(await request("GET", "/admin/jobs", { query }), "jobs"),
     failJob: (id: string, reason?: string) =>

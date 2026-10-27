@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "motion/react";
 import { useState } from "react";
 import { Toaster } from "sonner";
 import { ApiError } from "@/lib/api";
@@ -21,9 +22,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <QueryClientProvider client={client}>
-      <AuthProvider>{children}</AuthProvider>
-      <Toaster position="top-center" richColors closeButton />
-    </QueryClientProvider>
+    // Hareketi azaltma tercihinde kayma/ölçek animasyonları atlanır, yalnızca belirme kalır
+    <MotionConfig reducedMotion="user">
+      <QueryClientProvider client={client}>
+        <AuthProvider>{children}</AuthProvider>
+        <Toaster position="top-center" richColors closeButton />
+      </QueryClientProvider>
+    </MotionConfig>
   );
 }

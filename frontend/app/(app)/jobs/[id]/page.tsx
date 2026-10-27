@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Clock, FileQuestion, Loader2, Trash2, XCircle } from "lucide-react";
+import { ArrowLeft, Clock, FileQuestion, Trash2, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -11,11 +11,13 @@ import { JobIcon } from "@/components/jobs-table";
 import { DownloadButtons, TranscriptViewer } from "@/components/transcript-viewer";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { AnimatedNumber, FadeIn, SoundWave, StaggerGroup, StaggerItem } from "@/components/ui/motion";
 import { Card, Progress, Skeleton } from "@/components/ui/primitives";
+import { UnclearSection } from "@/components/unclear-review";
 import { api, errorMessage } from "@/lib/api";
 import { ACTIVE_STATUSES, LANGUAGE_LABELS } from "@/lib/constants";
-import { useModels } from "@/lib/hooks/use-models";
 import { useJob } from "@/lib/hooks/use-job";
+import { useModels } from "@/lib/hooks/use-models";
 import { getLocalMedia } from "@/lib/media";
 import type { Job, ResultFormat, TranscriptJson, TranscriptSegment } from "@/lib/types";
 import { formatBytes, formatCredits, formatDate, formatDuration } from "@/lib/utils";
@@ -43,7 +45,6 @@ export default function JobDetailPage() {
           <EmptyState
             icon={<FileQuestion />}
             title="İş bulunamadı"
-            description="Bu iş silinmiş olabilir ya da size ait değil."
             action={
               <Button asChild variant="outline">
                 <Link href="/jobs">İşlerime dön</Link>
@@ -71,14 +72,14 @@ function JobView({ job }: { job: Job }) {
     <>
       <Link
         href="/jobs"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900"
+        className="group mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900"
       >
-        <ArrowLeft className="size-4" /> İşlerim
+        <ArrowLeft className="size-4 transition-transform duration-200 group-hover:-translate-x-0.5" /> İşlerim
       </Link>
 
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <JobIcon job={job} />
+          <JobIcon job={job} className="size-11 rounded-2xl" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-xl font-semibold tracking-tight text-ink-900">{job.filename}</h1>
@@ -107,58 +108,60 @@ function PendingView({ job }: { job: Job }) {
   const processing = job.status === "processing";
   const pct = progressPct(job.progress);
   return (
-    <Card className="px-6 py-14 text-center">
-      <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-brand-50 text-brand-500">
-        {processing ? <Loader2 className="size-6 animate-spin" /> : <Clock className="size-6" />}
-      </div>
-      <p className="mt-5 text-lg font-semibold text-ink-900">
-        {processing ? "Transkript hazırlanıyor" : "Sırada bekliyor"}
-      </p>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-ink-500">
-        {processing
-          ? "Kaydınız dinleniyor. Bu sayfa kendiliğinden güncellenecek, kapatabilirsiniz."
-          : "İşiniz kuyruğa alındı, birazdan işlenmeye başlayacak."}
-      </p>
-      <div className="mx-auto mt-6 max-w-sm">
-        {processing ? (
-          <>
-            <Progress value={pct} />
-            <p className="mt-2 text-sm tabular-nums text-ink-500">%{pct}</p>
-          </>
-        ) : (
-          <div className="h-2 overflow-hidden rounded-full bg-ink-100">
-            <div className="h-full w-1/3 animate-pulse rounded-full bg-brand-200" />
+    <FadeIn>
+      <Card className="px-6 py-16 text-center">
+        <div className="relative mx-auto grid size-16 place-items-center">
+          <span className="absolute inset-0 animate-pulse-ring rounded-2xl bg-brand-400/30" />
+          <div className="relative grid size-15 place-items-center rounded-2xl bg-brand-50 text-brand-500 ring-8 ring-brand-50/50">
+            {processing ? <SoundWave bars={5} className="h-5" /> : <Clock className="size-6" />}
           </div>
-        )}
-      </div>
-      {job.credits_cost != null && (
-        <p className="mt-6 text-xs text-ink-400">
-          Bu iş için {formatCredits(job.credits_cost)} kredi ayrıldı.
+        </div>
+        <p className="mt-5 text-lg font-semibold text-ink-900">
+          {processing ? "Transkript hazırlanıyor" : "Sırada bekliyor"}
         </p>
-      )}
-    </Card>
+        <div className="mx-auto mt-6 max-w-sm">
+          {processing ? (
+            <>
+              <Progress value={pct} />
+              <p className="mt-2.5 text-sm font-medium tabular-nums text-ink-500">
+                %<AnimatedNumber value={pct} />
+              </p>
+            </>
+          ) : (
+            <div className="h-2 overflow-hidden rounded-full bg-ink-100">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-brand-300" />
+            </div>
+          )}
+        </div>
+        {job.credits_cost != null && (
+          <p className="mt-6 text-xs text-ink-400">{formatCredits(job.credits_cost)} kredi</p>
+        )}
+      </Card>
+    </FadeIn>
   );
 }
 
 function FailedView({ job }: { job: Job }) {
   return (
-    <Card className="px-6 py-14 text-center">
-      <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-accent-50 text-accent-500">
-        <XCircle className="size-6" />
-      </div>
-      <p className="mt-5 text-lg font-semibold text-ink-900">Transkript oluşturulamadı</p>
-      <p className="mx-auto mt-1 max-w-md text-sm text-ink-500">
-        {job.error || "Dosya işlenirken bir sorun oluştu."}
-      </p>
-      <p className="mx-auto mt-4 inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
-        Ayrılan kredi bakiyenize iade edildi
-      </p>
-      <div className="mt-6">
-        <Button asChild>
-          <Link href="/upload">Yeni dosya yükle</Link>
-        </Button>
-      </div>
-    </Card>
+    <FadeIn>
+      <Card className="px-6 py-16 text-center">
+        <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-accent-50 text-accent-500 ring-8 ring-accent-50/50">
+          <XCircle className="size-6" />
+        </div>
+        <p className="mt-5 text-lg font-semibold text-ink-900">Transkript oluşturulamadı</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-ink-500">
+          {job.error || "Dosya işlenirken bir sorun oluştu."}
+        </p>
+        <p className="mx-auto mt-4 inline-flex rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 ring-1 ring-inset ring-brand-200/60">
+          Kredi iade edildi
+        </p>
+        <div className="mt-6">
+          <Button asChild>
+            <Link href="/upload">Yeni dosya yükle</Link>
+          </Button>
+        </div>
+      </Card>
+    </FadeIn>
   );
 }
 
@@ -171,7 +174,6 @@ function CompletedView({ job }: { job: Job }) {
     queryKey: ["transcript", job.id],
     queryFn: async (): Promise<TranscriptJson> => {
       const res = await api.transcript(job.id);
-      // Yanıt {segments: [...]} ya da doğrudan segment dizisi olabilir.
       if (Array.isArray(res)) return { segments: res as TranscriptSegment[] };
       const obj = (res ?? {}) as Partial<TranscriptJson>;
       return { ...obj, segments: obj.segments ?? [] };
@@ -179,7 +181,6 @@ function CompletedView({ job }: { job: Job }) {
     staleTime: Infinity,
   });
 
-  // Bu oturumda yüklenmediyse kaynak medyayı sunucudan istemeyi dene; yoksa oynatıcı gizlenir.
   const source = useQuery({
     queryKey: ["source", job.id],
     queryFn: () => api.downloadUrl(job.id, "source"),
@@ -208,53 +209,64 @@ function CompletedView({ job }: { job: Job }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-      <Card className="order-2 overflow-hidden lg:order-1">
-        {transcript.isLoading ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-6" style={{ width: `${60 + ((i * 13) % 40)}%` }} />
-            ))}
-          </div>
-        ) : transcript.isError ? (
-          <ErrorState message={errorMessage(transcript.error)} onRetry={() => transcript.refetch()} />
-        ) : (
-          <TranscriptViewer
-            segments={transcript.data?.segments ?? []}
-            currentTime={currentTime}
-            onSeek={mediaUrl ? seek : undefined}
-          />
-        )}
-      </Card>
-
-      <div className="order-1 space-y-4 lg:order-2">
-        {mediaUrl && (
-          <Card className="overflow-hidden p-3">
-            {isVideo ? (
-              <video ref={(el) => { mediaRef.current = el; }} {...mediaProps} className="w-full rounded-xl bg-ink-900" />
-            ) : (
-              <audio ref={(el) => { mediaRef.current = el; }} {...mediaProps} />
-            )}
-          </Card>
-        )}
-
-        <Card className="p-5">
-          <p className="text-sm font-medium text-ink-900">İndir</p>
-          <p className="mb-3 mt-0.5 text-xs text-ink-500">SRT ve VTT altyazı olarak kullanılabilir.</p>
-          <DownloadButtons jobId={job.id} available={formats} />
-        </Card>
-
-        <Card className="p-5">
-          <dl className="space-y-2.5 text-sm">
-            <Row label="Süre" value={formatDuration(job.duration_sec)} />
-            <Row label="Kullanılan kredi" value={formatCredits(job.credits_cost)} />
-            <Row
-              label="Algılanan dil"
-              value={LANGUAGE_LABELS[job.detected_language ?? ""] ?? job.detected_language ?? "—"}
+      <FadeIn className="order-2 lg:order-1">
+        <Card className="overflow-hidden">
+          {transcript.isLoading ? (
+            <div className="space-y-3 p-5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-6" style={{ width: `${60 + ((i * 13) % 40)}%` }} />
+              ))}
+            </div>
+          ) : transcript.isError ? (
+            <ErrorState message={errorMessage(transcript.error)} onRetry={() => transcript.refetch()} />
+          ) : (
+            <TranscriptViewer
+              segments={transcript.data?.segments ?? []}
+              currentTime={currentTime}
+              onSeek={mediaUrl ? seek : undefined}
             />
-            <Row label="Tamamlanma" value={formatDate(job.finished_at)} />
-          </dl>
+          )}
         </Card>
-      </div>
+      </FadeIn>
+
+      <StaggerGroup className="order-1 space-y-4 lg:order-2">
+        {mediaUrl && (
+          <StaggerItem>
+            <Card className="overflow-hidden p-3">
+              {isVideo ? (
+                <video ref={(el) => { mediaRef.current = el; }} {...mediaProps} className="w-full rounded-xl bg-ink-900" />
+              ) : (
+                <audio ref={(el) => { mediaRef.current = el; }} {...mediaProps} />
+              )}
+            </Card>
+          </StaggerItem>
+        )}
+
+        <StaggerItem>
+          <UnclearSection job={job} />
+        </StaggerItem>
+
+        <StaggerItem>
+          <Card className="p-5">
+            <p className="mb-3 text-sm font-semibold text-ink-900">İndir</p>
+            <DownloadButtons jobId={job.id} available={formats} />
+          </Card>
+        </StaggerItem>
+
+        <StaggerItem>
+          <Card className="p-5">
+            <dl className="space-y-2.5 text-sm">
+              <Row label="Süre" value={formatDuration(job.duration_sec)} />
+              <Row label="Kredi" value={formatCredits(job.credits_cost)} />
+              <Row
+                label="Dil"
+                value={LANGUAGE_LABELS[job.detected_language ?? ""] ?? job.detected_language ?? "—"}
+              />
+              <Row label="Tamamlanma" value={formatDate(job.finished_at)} />
+            </dl>
+          </Card>
+        </StaggerItem>
+      </StaggerGroup>
     </div>
   );
 }
@@ -293,10 +305,7 @@ function DeleteJobButton({ job }: { job: Job }) {
           <Trash2 /> Sil
         </Button>
       </DialogTrigger>
-      <DialogContent
-        title="İşi sil"
-        description="Transkript ve yüklenen dosya kalıcı olarak silinecek. Bu işlem geri alınamaz."
-      >
+      <DialogContent title="İşi sil" description="Bu işlem geri alınamaz.">
         <div className="flex justify-end gap-2">
           <DialogClose asChild>
             <Button variant="ghost">Vazgeç</Button>

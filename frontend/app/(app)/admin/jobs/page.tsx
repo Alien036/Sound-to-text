@@ -6,6 +6,7 @@ import { useState } from "react";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common";
 import { JobsTable } from "@/components/jobs-table";
 import { Button } from "@/components/ui/button";
+import { FadeIn } from "@/components/ui/motion";
 import { Card, Input, Select, Skeleton } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api";
 import { STATUS_LABELS } from "@/lib/constants";
@@ -28,7 +29,7 @@ export default function AdminJobsPage() {
 
   return (
     <>
-      <PageHeader title="Tüm işler" description="Sistemdeki tüm transkript işleri." />
+      <PageHeader title="Tüm işler" />
 
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <Select value={status} onChange={(e) => setStatus(e.target.value)} className="sm:w-48">
@@ -57,31 +58,32 @@ export default function AdminJobsPage() {
         </form>
       </div>
 
-      <Card>
-        {q.isLoading ? (
-          <div className="space-y-3 p-5">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12" />
-            ))}
-          </div>
-        ) : q.isError ? (
-          <ErrorState message={errorMessage(q.error)} onRetry={() => q.refetch()} />
-        ) : jobs.length === 0 ? (
-          <EmptyState icon={<Workflow />} title="İş bulunamadı" />
-        ) : (
-          <>
-            {/* Firestore kuralları başka kullanıcının işini okumaya izin vermediği için detay linki yok. */}
-            <JobsTable jobs={jobs} showOwner hrefFor={() => null} />
-            {q.hasNextPage && (
-              <div className="flex justify-center p-4">
-                <Button variant="outline" onClick={() => q.fetchNextPage()} loading={q.isFetchingNextPage}>
-                  Daha fazla göster
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+      <FadeIn delay={0.05}>
+        <Card>
+          {q.isLoading ? (
+            <div className="space-y-3 p-5">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12" />
+              ))}
+            </div>
+          ) : q.isError ? (
+            <ErrorState message={errorMessage(q.error)} onRetry={() => q.refetch()} />
+          ) : jobs.length === 0 ? (
+            <EmptyState icon={<Workflow />} title="İş bulunamadı" />
+          ) : (
+            <>
+              <JobsTable jobs={jobs} showOwner hrefFor={() => null} />
+              {q.hasNextPage && (
+                <div className="flex justify-center p-4">
+                  <Button variant="outline" onClick={() => q.fetchNextPage()} loading={q.isFetchingNextPage}>
+                    Daha fazla göster
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      </FadeIn>
     </>
   );
 }

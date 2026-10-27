@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { EmptyState, ErrorState, PageHeader } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { AnimatedNumber, FadeIn, SlidingTabs, StaggerGroup, StaggerItem } from "@/components/ui/motion";
 import {
   Badge,
   Card,
@@ -35,8 +36,6 @@ import {
 } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/hooks/use-auth";
-import { usePricing } from "@/lib/hooks/use-me";
-import { formatTry } from "@/lib/pricing";
 import type { AdminUser } from "@/lib/types";
 import { cn, formatCredits, formatDate } from "@/lib/utils";
 
@@ -56,7 +55,6 @@ export default function AlienAdminPage() {
   const q = useDebounced(search.trim());
   const [selected, setSelected] = useState<AdminUser | null>(null);
 
-  // Eğer arama e-posta gibi görünüyorsa API'ye de gönder, aksi halde tüm listeyi çekip istemcide de filtrele.
   const apiEmailQuery = q.includes("@") ? q : undefined;
 
   const usersQuery = useInfiniteQuery({
@@ -96,8 +94,7 @@ export default function AlienAdminPage() {
   return (
     <>
       <PageHeader
-        title="Admin Paneli · Token Yönetimi"
-        description="Tüm kullanıcıları görüntüleyin; herkesin token (kredi) bakiyesini doğrudan belirleyin, ekleyin veya düşün."
+        title="Kullanıcılar & Token"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -122,126 +119,128 @@ export default function AlienAdminPage() {
         }
       />
 
-      {/* Özet Kartları */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Card className="border-0 bg-ink-900 text-white">
-          <CardContent className="flex items-center gap-3.5 p-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/10 text-brand-300">
-              <Users className="size-5" />
-            </span>
-            <div>
-              <p className="text-xs text-ink-300">Toplam Kullanıcı</p>
-              <p className="text-2xl font-semibold tabular-nums">
-                {usersQuery.isLoading ? "…" : allItems.length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      <StaggerGroup className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StaggerItem>
+          <Card dark hover className="relative overflow-hidden">
+            <div className="pointer-events-none absolute -right-10 -top-10 size-32 animate-aurora rounded-full bg-brand-500/35 blur-2xl" />
+            <CardContent className="flex items-center gap-3.5 p-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/10 text-brand-300">
+                <Users className="size-5" />
+              </span>
+              <div>
+                <p className="text-xs text-ink-300">Toplam Kullanıcı</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {usersQuery.isLoading ? "…" : <AnimatedNumber value={allItems.length} />}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </StaggerItem>
 
-        <Card>
-          <CardContent className="flex items-center gap-3.5 p-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
-              <Coins className="size-5" />
-            </span>
-            <div>
-              <p className="text-xs text-ink-500">Toplam Kullanıcı Tokenı</p>
-              <p className="text-2xl font-semibold tabular-nums text-ink-900">
-                {usersQuery.isLoading ? "…" : formatCredits(totalTokens)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <StaggerItem>
+          <Card hover>
+            <CardContent className="flex items-center gap-3.5 p-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                <Coins className="size-5" />
+              </span>
+              <div>
+                <p className="text-xs text-ink-500">Toplam Token</p>
+                <p className="text-2xl font-semibold tabular-nums text-ink-900">
+                  {usersQuery.isLoading ? "…" : <AnimatedNumber value={totalTokens} />}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </StaggerItem>
 
-        <Card>
-          <CardContent className="flex items-center gap-3.5 p-4">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-50 text-accent-600">
-              <ShieldCheck className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs text-ink-500">Aktif Yönetici Oturumu</p>
-              <p className="truncate text-sm font-medium text-ink-900">
-                {currentUser?.email ?? "—"}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+        <StaggerItem>
+          <Card hover>
+            <CardContent className="flex items-center gap-3.5 p-4">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-50 text-accent-600">
+                <ShieldCheck className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-ink-500">Yönetici</p>
+                <p className="truncate text-sm font-medium text-ink-900">
+                  {currentUser?.email ?? "—"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </StaggerItem>
+      </StaggerGroup>
 
-      {/* Arama Çubuğu */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="E-posta, isim veya UID ile kullanıcı ara…"
+            placeholder="E-posta, isim veya UID ile ara…"
             className="pl-9"
           />
         </div>
         {q && (
           <p className="text-xs text-ink-500">
-            Arama sonucu: <span className="font-semibold text-ink-900">{items.length}</span> kullanıcı
+            <span className="font-semibold text-ink-900">{items.length}</span> sonuç
           </p>
         )}
       </div>
 
-      {/* Kullanıcı Tablosu */}
-      <Card>
-        {usersQuery.isLoading ? (
-          <div className="space-y-3 p-5">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-14" />
-            ))}
-          </div>
-        ) : usersQuery.isError ? (
-          <ErrorState
-            message={errorMessage(usersQuery.error)}
-            onRetry={() => usersQuery.refetch()}
-          />
-        ) : items.length === 0 ? (
-          <EmptyState
-            icon={<Users />}
-            title="Kullanıcı bulunamadı"
-            description={q ? `"${q}" aramasına uygun kullanıcı yok.` : "Sistemde henüz kayıtlı kullanıcı yok."}
-          />
-        ) : (
-          <>
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Kullanıcı</Th>
-                  <Th className="text-right">Mevcut Token</Th>
-                  <Th>Hızlı Token Ayarla</Th>
-                  <Th className="text-right">Kayıt</Th>
-                  <Th className="text-right">İşlem</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((u) => (
-                  <UserTokenRow
-                    key={u.uid}
-                    user={u}
-                    onOpenModal={() => setSelected(u)}
-                    onUpdated={refreshAll}
-                  />
-                ))}
-              </tbody>
-            </Table>
+      <FadeIn delay={0.08}>
+        <Card>
+          {usersQuery.isLoading ? (
+            <div className="space-y-3 p-5">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-14" />
+              ))}
+            </div>
+          ) : usersQuery.isError ? (
+            <ErrorState
+              message={errorMessage(usersQuery.error)}
+              onRetry={() => usersQuery.refetch()}
+            />
+          ) : items.length === 0 ? (
+            <EmptyState icon={<Users />} title="Kullanıcı bulunamadı" />
+          ) : (
+            <>
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Kullanıcı</Th>
+                    <Th className="text-right">Mevcut Token</Th>
+                    <Th>Hızlı Token Ayarla</Th>
+                    <Th className="text-right">Kayıt</Th>
+                    <Th className="text-right">İşlem</Th>
+                  </tr>
+                </thead>
+                <tbody className="stagger">
+                  {items.map((u) => (
+                    <UserTokenRow
+                      key={u.uid}
+                      user={u}
+                      onOpenModal={() => setSelected(u)}
+                      onUpdated={refreshAll}
+                    />
+                  ))}
+                </tbody>
+              </Table>
 
-            {usersQuery.hasNextPage && (
-              <div className="flex justify-center border-t border-ink-100 p-4">
-                <Button
-                  variant="outline"
-                  onClick={() => usersQuery.fetchNextPage()}
-                  loading={usersQuery.isFetchingNextPage}
-                >
-                  Daha fazla kullanıcı yükle
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </Card>
+              {usersQuery.hasNextPage && (
+                <div className="flex justify-center border-t border-ink-100 p-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => usersQuery.fetchNextPage()}
+                    loading={usersQuery.isFetchingNextPage}
+                  >
+                    Daha fazla göster
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      </FadeIn>
 
       <TokenDialog
         user={selected}
@@ -312,7 +311,7 @@ function UserTokenRow({
     parsedTarget !== user.credits_balance;
 
   return (
-    <tr className="hover:bg-ink-50/60">
+    <tr className="transition-colors hover:bg-ink-50/70">
       <Td>
         <div className="flex items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600">
@@ -322,7 +321,6 @@ function UserTokenRow({
             <p className="flex flex-wrap items-center gap-1.5 truncate font-medium text-ink-900">
               <span>{user.display_name || "—"}</span>
               {user.is_admin && <Badge tone="dark">Admin</Badge>}
-              {user.subscription?.status === "active" && <Badge tone="solid">Pro</Badge>}
               {user.disabled && <Badge tone="accent">Devre dışı</Badge>}
             </p>
             <p className="truncate text-xs text-ink-500">{user.email || user.uid}</p>
@@ -331,53 +329,36 @@ function UserTokenRow({
       </Td>
 
       <Td className="text-right">
-        <span className="inline-flex items-center gap-1.5 rounded-xl bg-brand-50 px-3 py-1 font-semibold tabular-nums text-brand-700">
+        <span className="inline-flex items-center gap-1.5 rounded-xl bg-brand-50 px-3 py-1 font-semibold tabular-nums text-brand-700 ring-1 ring-inset ring-brand-200/50">
           <Coins className="size-3.5 text-brand-500" />
-          {formatCredits(user.credits_balance)}
+          <AnimatedNumber value={user.credits_balance} />
         </span>
       </Td>
 
       <Td>
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* Hızlı Ekle / Düş Butonları */}
           <button
             type="button"
             disabled={busy || user.credits_balance < 10}
             onClick={() => applyDelta(-10, "Hızlı -10 token")}
-            className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-accent-600 transition-colors hover:bg-accent-50 disabled:opacity-40 cursor-pointer"
+            className="cursor-pointer rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-accent-600 transition-all hover:-translate-y-0.5 hover:bg-accent-50 active:scale-95 disabled:opacity-40"
             title="10 token düş"
           >
             -10
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => applyDelta(10, "Hızlı +10 token")}
-            className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:opacity-40 cursor-pointer"
-            title="10 token ekle"
-          >
-            +10
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => applyDelta(50, "Hızlı +50 token")}
-            className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:opacity-40 cursor-pointer"
-            title="50 token ekle"
-          >
-            +50
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => applyDelta(100, "Hızlı +100 token")}
-            className="rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:opacity-40 cursor-pointer"
-            title="100 token ekle"
-          >
-            +100
-          </button>
+          {[10, 50, 100].map((inc) => (
+            <button
+              key={inc}
+              type="button"
+              disabled={busy}
+              onClick={() => applyDelta(inc, `Hızlı +${inc} token`)}
+              className="cursor-pointer rounded-lg border border-ink-200 bg-white px-2 py-1 text-xs font-medium text-brand-600 transition-all hover:-translate-y-0.5 hover:bg-brand-50 active:scale-95 disabled:opacity-40"
+              title={`${inc} token ekle`}
+            >
+              +{inc}
+            </button>
+          ))}
 
-          {/* Doğrudan Hedef Bakiye Girişi */}
           <form onSubmit={handleDirectSet} className="ml-1 flex items-center gap-1">
             <Input
               type="number"
@@ -418,46 +399,10 @@ function UserTokenRow({
   );
 }
 
-/** Ödeme entegrasyonu gelene kadar Pro aboneliği buradan elle açılıp kapatılır. */
-function SubscriptionRow({ user, onDone }: { user: AdminUser; onDone: () => void }) {
-  const pricing = usePricing();
-  const [busy, setBusy] = useState(false);
-  const active = user.subscription?.status === "active";
-
-  async function toggle() {
-    setBusy(true);
-    try {
-      await api.admin.setSubscription(user.uid, { plan: active ? null : "pro" });
-      toast.success(active ? "Pro aboneliği iptal edildi." : "Pro aboneliği başlatıldı.");
-      onDone();
-    } catch (err) {
-      toast.error(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="mt-5 flex items-center justify-between gap-4 border-t border-ink-100 pt-5">
-      <div className="text-sm">
-        <p className="font-medium text-ink-900">Pro aboneliği</p>
-        <p className="text-ink-500">
-          {active
-            ? `Aktif · bitiş ${formatDate(user.subscription?.current_period_end)}`
-            : `${formatTry(pricing.plan_price_try)} / ay · ${pricing.plan_monthly_credits} dk`}
-        </p>
-      </div>
-      <Button variant={active ? "danger" : "dark"} size="sm" onClick={toggle} loading={busy}>
-        {active ? "İptal et" : "Pro başlat"}
-      </Button>
-    </div>
-  );
-}
-
 const SET_PRESETS = [0, 5, 25, 50, 100, 250, 400, 1000];
 const DELTA_PRESETS = [5, 10, 25, 50, 100, 250, 400, 1000];
 
-export function TokenDialog({
+function TokenDialog({
   user,
   onClose,
   onUpdated,
@@ -548,74 +493,71 @@ export function TokenDialog({
           description={`${user.display_name ? `${user.display_name} · ` : ""}${user.email || user.uid}`}
         >
           <form onSubmit={submit} className="space-y-4">
-            {/* Mod Seçici */}
-            <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-ink-50 p-1">
-              {(
-                [
-                  { id: "set", label: "Bakiye Belirle", icon: Equal },
-                  { id: "add", label: "Token Ekle", icon: Plus },
-                  { id: "remove", label: "Token Düş", icon: Minus },
-                ] as const
-              ).map((m) => (
+            <SlidingTabs
+              layoutId="token-dialog-mode"
+              variant="surface"
+              value={mode}
+              onChange={handleModeChange}
+              className="grid w-full grid-cols-3"
+              options={[
+                {
+                  value: "set",
+                  label: (
+                    <>
+                      <Equal className="size-3.5" /> Belirle
+                    </>
+                  ),
+                },
+                {
+                  value: "add",
+                  label: (
+                    <>
+                      <Plus className="size-3.5" /> Ekle
+                    </>
+                  ),
+                },
+                {
+                  value: "remove",
+                  tone: "accent",
+                  label: (
+                    <>
+                      <Minus className="size-3.5" /> Düş
+                    </>
+                  ),
+                },
+              ]}
+            />
+
+            <div className="flex flex-wrap gap-1.5">
+              {(mode === "set" ? SET_PRESETS : DELTA_PRESETS).map((preset) => (
                 <button
-                  key={m.id}
+                  key={preset}
                   type="button"
-                  onClick={() => handleModeChange(m.id)}
+                  onClick={() => setAmount(String(preset))}
                   className={cn(
-                    "flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition-colors cursor-pointer",
-                    mode === m.id
-                      ? m.id === "remove"
-                        ? "bg-white text-accent-600 shadow-sm"
-                        : "bg-white text-brand-600 shadow-sm"
-                      : "text-ink-500 hover:text-ink-800",
+                    "cursor-pointer rounded-lg border px-2.5 py-1 text-xs font-medium tabular-nums transition-all active:scale-95",
+                    Number(amount) === preset && amount.trim() !== ""
+                      ? "border-brand-400 bg-brand-50 text-brand-700"
+                      : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
                   )}
                 >
-                  <m.icon className="size-3.5" />
-                  {m.label}
+                  {mode === "add" ? `+${preset}` : mode === "remove" ? `-${preset}` : preset === 0 ? "0" : preset}
                 </button>
               ))}
-            </div>
-
-            {/* Hazır Değer Butonları */}
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-ink-500">
-                {mode === "set" ? "Hızlı bakiye seç:" : "Hızlı miktar seç:"}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {(mode === "set" ? SET_PRESETS : DELTA_PRESETS).map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setAmount(String(preset))}
-                    className={cn(
-                      "rounded-lg border px-2.5 py-1 text-xs font-medium tabular-nums transition-colors cursor-pointer",
-                      Number(amount) === preset && amount.trim() !== ""
-                        ? "border-brand-400 bg-brand-50 text-brand-700"
-                        : "border-ink-200 bg-white text-ink-700 hover:bg-ink-50",
-                    )}
-                  >
-                    {mode === "add" ? `+${preset}` : mode === "remove" ? `-${preset}` : preset === 0 ? "0 (Sıfırla)" : preset}
-                  </button>
-                ))}
-                {mode === "remove" && user.credits_balance > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setAmount(String(user.credits_balance))}
-                    className="rounded-lg border border-accent-200 bg-accent-50 px-2.5 py-1 text-xs font-medium text-accent-700 hover:bg-accent-100 cursor-pointer"
-                  >
-                    Tümünü düş ({user.credits_balance})
-                  </button>
-                )}
-              </div>
+              {mode === "remove" && user.credits_balance > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAmount(String(user.credits_balance))}
+                  className="cursor-pointer rounded-lg border border-accent-200 bg-accent-50 px-2.5 py-1 text-xs font-medium text-accent-700 hover:bg-accent-100"
+                >
+                  Tümü ({user.credits_balance})
+                </button>
+              )}
             </div>
 
             <div>
               <Label htmlFor="amount">
-                {mode === "set"
-                  ? "Yeni Token Bakiyesi"
-                  : mode === "add"
-                    ? "Eklenecek Token Miktarı"
-                    : "Düşülecek Token Miktarı"}
+                {mode === "set" ? "Yeni Bakiye" : mode === "add" ? "Eklenecek Miktar" : "Düşülecek Miktar"}
               </Label>
               <Input
                 id="amount"
@@ -627,7 +569,7 @@ export function TokenDialog({
                 autoFocus
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder={mode === "set" ? "ör. 100" : "ör. 50"}
+                placeholder={mode === "set" ? "100" : "50"}
               />
             </div>
 
@@ -637,14 +579,13 @@ export function TokenDialog({
                 id="note"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="ör. Paket tanımlaması / Manuel token ayarı"
+                placeholder="Paket tanımlaması"
               />
             </div>
 
-            {/* Önizleme Kutusu */}
             <div className="flex items-center justify-between rounded-xl border border-ink-100 bg-ink-50/50 px-4 py-3 text-sm">
               <span className="text-ink-500">
-                Mevcut: <strong className="text-ink-900">{formatCredits(user.credits_balance)}</strong> → Yeni:{" "}
+                <strong className="text-ink-900">{formatCredits(user.credits_balance)}</strong> →{" "}
                 <span
                   className={cn(
                     "font-semibold",
@@ -660,7 +601,7 @@ export function TokenDialog({
                   delta > 0 ? "text-brand-600" : delta < 0 ? "text-accent-600" : "text-ink-400",
                 )}
               >
-                {delta !== 0 ? `${delta > 0 ? "+" : ""}${formatCredits(delta)} token` : "Değişiklik yok"}
+                {delta !== 0 ? `${delta > 0 ? "+" : ""}${formatCredits(delta)} token` : "—"}
               </span>
             </div>
 
@@ -672,21 +613,9 @@ export function TokenDialog({
               loading={busy}
               disabled={!valid || (after != null && after < 0)}
             >
-              {mode === "set"
-                ? "Bakiyeyi Kaydet"
-                : mode === "add"
-                  ? "Token Ekle"
-                  : "Token Düş"}
+              {mode === "set" ? "Kaydet" : mode === "add" ? "Token Ekle" : "Token Düş"}
             </Button>
           </form>
-
-          <SubscriptionRow
-            user={user}
-            onDone={() => {
-              onUpdated();
-              onClose();
-            }}
-          />
         </DialogContent>
       )}
     </Dialog>

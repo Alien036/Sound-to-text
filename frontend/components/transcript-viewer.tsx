@@ -7,7 +7,9 @@ import { api, errorMessage } from "@/lib/api";
 import type { ResultFormat, TranscriptSegment } from "@/lib/types";
 import { cn, formatDuration } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { AnimatePresence, motion } from "./ui/motion";
 import { Input } from "./ui/primitives";
+import { UNCLEAR_RE } from "./unclear-review";
 
 const FORMATS: { value: ResultFormat; label: string }[] = [
   { value: "txt", label: "TXT" },
@@ -15,6 +17,23 @@ const FORMATS: { value: ResultFormat; label: string }[] = [
   { value: "vtt", label: "VTT" },
   { value: "json", label: "JSON" },
 ];
+
+/** Kalan [anlaşılmıyor] işaretlerini rozet olarak gösterir; aramayı diğer kısımlara uygular. */
+function SegmentText({ text, query }: { text: string; query: string }) {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(UNCLEAR_RE)) {
+    parts.push(<Highlight key={`t${last}`} text={text.slice(last, m.index)} query={query} />);
+    parts.push(
+      <span key={m.index} className="mx-0.5 rounded-md bg-accent-50 px-1.5 py-0.5 text-xs font-medium text-accent-700">
+        anlaşılmıyor
+      </span>,
+    );
+    last = m.index + m[0].length;
+  }
+  parts.push(<Highlight key={`t${last}`} text={text.slice(last)} query={query} />);
+  return <>{parts}</>;
+}
 
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query) return <>{text}</>;
@@ -54,7 +73,7 @@ export function DownloadButtons({ jobId, available }: { jobId: string; available
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
       {FORMATS.filter((f) => !available || available.includes(f.value)).map((f) => (
         <Button
           key={f.value}
@@ -105,7 +124,6 @@ export function TranscriptViewer({
     if (follow && !q) activeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [activeIdx, follow, q]);
 
-  // Gemini işlerinde konuşmacılar var: aynı konuşmacının ardışık bölümleri tek paragraf olur.
   const hasSpeakers = segments.some((s) => s.speaker);
 
   function plainText() {
@@ -129,7 +147,7 @@ export function TranscriptViewer({
 
   return (
     <div>
-      <div className="flex flex-col gap-2 border-b border-ink-100 p-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 border-b border-ink-100 bg-ink-50/30 p-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-400" />
           <Input
@@ -139,28 +157,56 @@ export function TranscriptViewer({
             className="pl-9"
           />
         </div>
-        {q && (
-          <span className="text-sm text-ink-500">
-            {visible.length} sonuç
-          </span>
-        )}
+        <AnimatePresence>
+          {q && (
+            <motion.span
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium tabular-nums text-brand-700"
+            >
+              {visible.length} sonuç
+            </motion.span>
+          )}
+        </AnimatePresence>
         <Button variant="outline" size="md" onClick={copyAll}>
-          {copied ? <Check /> : <Copy />}
-          Kopyala
+          <AnimatePresence mode="wait" initial={false}>
+            {copied ? (
+              <motion.span
+                key="check"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <Check className="text-brand-600" />
+              </motion.span>
+            ) : (
+              <motion.span
+                key="copy"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <Copy />
+              </motion.span>
+            )}
+          </AnimatePresence>
+          {copied ? "Kopyalandı" : "Kopyala"}
         </Button>
       </div>
 
       <div
-        className="max-h-[60vh] overflow-y-auto p-2"
+        className="max-h-[62vh] overflow-y-auto p-2"
         onWheel={() => setFollow(false)}
         onTouchMove={() => setFollow(false)}
       >
         {visible.length === 0 ? (
-          <p className="py-10 text-center text-sm text-ink-500">Eşleşen bölüm bulunamadı.</p>
+          <p className="py-12 text-center text-sm text-ink-500">Eşleşen bölüm bulunamadı.</p>
         ) : (
           visible.map(({ s, idx }, i) => {
             const active = idx === activeIdx;
-            // Konuşmacı değiştiğinde (ya da arama sonuçlarında her satırda) etiketi göster.
             const prev = visible[i - 1];
             const showSpeaker = !!s.speaker && (!prev || prev.idx !== idx - 1 || prev.s.speaker !== s.speaker);
             return (
@@ -172,15 +218,17 @@ export function TranscriptViewer({
                   setFollow(true);
                 }}
                 className={cn(
-                  "flex w-full gap-4 rounded-xl px-3 py-2.5 text-left transition-colors",
-                  active ? "bg-brand-50" : "hover:bg-ink-50",
-                  !onSeek && "cursor-text",
+                  "flex w-full gap-4 rounded-xl px-3.5 py-2.5 text-left transition-all duration-200",
+                  active
+                    ? "bg-brand-50/90 ring-1 ring-inset ring-brand-200/60"
+                    : "hover:bg-ink-50/80",
+                  onSeek ? "cursor-pointer" : "cursor-text",
                 )}
               >
                 <span
                   className={cn(
-                    "w-14 shrink-0 pt-0.5 font-mono text-xs tabular-nums",
-                    active ? "text-brand-600" : "text-ink-400",
+                    "w-14 shrink-0 pt-0.5 font-mono text-xs tabular-nums transition-colors",
+                    active ? "font-semibold text-brand-600" : "text-ink-400",
                   )}
                 >
                   {formatDuration(s.start)}
@@ -191,7 +239,7 @@ export function TranscriptViewer({
                       <Highlight text={s.speaker!} query={q} />
                     </span>
                   )}
-                  <Highlight text={s.text.trim()} query={q} />
+                  <SegmentText text={s.text.trim()} query={q} />
                 </span>
               </button>
             );

@@ -1,17 +1,22 @@
 "use client";
 
-import { FileAudio, FileVideo } from "lucide-react";
+import { ChevronRight, FileAudio, FileVideo } from "lucide-react";
 import Link from "next/link";
 import type { Job } from "@/lib/types";
-import { formatCredits, formatDuration, formatRelative } from "@/lib/utils";
+import { cn, formatCredits, formatDuration, formatRelative } from "@/lib/utils";
 import { JobStatusBadge } from "./common";
 import { Table, Td, Th } from "./ui/primitives";
 
-export function JobIcon({ job }: { job: Pick<Job, "content_type" | "filename"> }) {
+export function JobIcon({ job, className }: { job: Pick<Job, "content_type" | "filename">; className?: string }) {
   const isVideo = job.content_type?.startsWith("video") || /\.(mp4|mov|mkv)$/i.test(job.filename);
   const Icon = isVideo ? FileVideo : FileAudio;
   return (
-    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-ink-50 text-ink-500">
+    <span
+      className={cn(
+        "grid size-9 shrink-0 place-items-center rounded-xl bg-ink-50 text-ink-500 ring-1 ring-inset ring-ink-200/50 transition-all duration-200 group-hover:scale-105 group-hover:bg-brand-50 group-hover:text-brand-600 group-hover:ring-brand-200/60",
+        className,
+      )}
+    >
       <Icon className="size-4" />
     </span>
   );
@@ -38,14 +43,16 @@ export function JobsTable({
           <Th className="text-right">Tarih</Th>
         </tr>
       </thead>
-      <tbody>
+      <tbody className="stagger">
         {jobs.map((job) => {
           const href = hrefFor(job);
           const name = (
             <span className="flex min-w-0 items-center gap-3">
               <JobIcon job={job} />
               <span className="min-w-0">
-                <span className="block max-w-[18rem] truncate font-medium text-ink-900">{job.filename}</span>
+                <span className="block max-w-[18rem] truncate font-medium text-ink-900 transition-colors group-hover:text-brand-600">
+                  {job.filename}
+                </span>
                 {job.text_preview && (
                   <span className="block max-w-[18rem] truncate text-xs text-ink-400">{job.text_preview}</span>
                 )}
@@ -53,10 +60,10 @@ export function JobsTable({
             </span>
           );
           return (
-            <tr key={job.id} className="group transition-colors hover:bg-ink-50/60">
+            <tr key={job.id} className="group transition-colors duration-200 hover:bg-ink-50/70">
               <Td>
                 {href ? (
-                  <Link href={href} className="block group-hover:[&_span.font-medium]:text-brand-600">
+                  <Link href={href} className="block">
                     {name}
                   </Link>
                 ) : (
@@ -68,10 +75,15 @@ export function JobsTable({
                 <JobStatusBadge job={job} />
               </Td>
               <Td className="text-right tabular-nums">{formatDuration(job.duration_sec)}</Td>
-              <Td className="text-right tabular-nums">
-                {formatCredits(job.credits_cost)}
+              <Td className="text-right tabular-nums">{formatCredits(job.credits_cost)}</Td>
+              <Td className="whitespace-nowrap text-right text-ink-500">
+                <span className="inline-flex items-center justify-end gap-1.5">
+                  {formatRelative(job.created_at)}
+                  {href && (
+                    <ChevronRight className="size-4 -translate-x-1 text-ink-300 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:text-brand-500 group-hover:opacity-100" />
+                  )}
+                </span>
               </Td>
-              <Td className="whitespace-nowrap text-right text-ink-500">{formatRelative(job.created_at)}</Td>
             </tr>
           );
         })}

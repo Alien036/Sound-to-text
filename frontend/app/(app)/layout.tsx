@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { FullPageSpinner } from "@/components/common";
+import { TermsGate } from "@/components/terms-gate";
 import { useAuth } from "@/lib/hooks/use-auth";
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -16,5 +17,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   }, [loading, user, pathname, router]);
 
   if (loading || !user) return <FullPageSpinner />;
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      {children}
+      <TermsGate />
+    </AppShell>
+  );
 }

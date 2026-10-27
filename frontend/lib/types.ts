@@ -12,24 +12,17 @@ export type DateLike =
   | null
   | undefined;
 
-export interface Subscription {
-  plan: "pro";
-  status: "active" | "canceled" | "expired";
-  current_period_end?: DateLike;
-  /** Dönem başında yüklenen aylık kredi ve bu dönemde harcanan kısmı. */
-  period_credits: number;
-  period_used: number;
-}
-
 export interface UserProfile {
   uid: string;
   email: string;
   display_name?: string | null;
   credits_balance: number;
   is_admin?: boolean | null;
-  subscription?: Subscription | null;
   created_at?: DateLike;
   disabled?: boolean;
+  /** Kullanıcının onayladığı ve güncel yasal metin sürümü; farklıysa yeniden onay istenir. */
+  accepted_terms_version?: string | null;
+  terms_version?: string | null;
 }
 
 export interface Pricing {
@@ -37,21 +30,22 @@ export interface Pricing {
   model_multipliers: Record<string, number>;
   max_duration_sec: number;
   max_file_mb: number;
-  signup_bonus: number;
   /** GET /pricing: kullanılabilir modeller (ör. ["gemini", "turbo", "large-v3"]). */
   models?: string[];
   /** GET /pricing: ucuzdan pahalıya sıralı model kartları; ad/açıklama/fiyat buradan. */
   model_details?: ModelDetail[];
   default_model?: string;
   allowed_extensions?: string[];
-  /** Aylık Pro paket (KDV dahil TL) ve her ay yüklenen kredi. */
-  plan_price_try: number;
-  plan_monthly_credits: number;
-  /** Kota bitince alınan ek paket. */
-  topup_credits: number;
-  topup_price_try: number;
-  /** Turbo ile 1 dakika sesin tahmini GPU maliyeti (TL); kâr çarpanı hesabı için. */
-  gpu_cost_per_minute_try: number;
+  /** Lisans anahtarı olarak satılan tek seferlik kredi paketleri (ucuzdan pahalıya). */
+  packages?: CreditPackage[];
+}
+
+export interface CreditPackage {
+  id: string;
+  name: string;
+  credits: number;
+  /** KDV dahil TL; yalnızca gösterim, ödeme elle alınır */
+  price_try: number;
 }
 
 export interface ModelDetail {
@@ -97,17 +91,60 @@ export interface Job {
   created_at?: DateLike;
   started_at?: DateLike;
   finished_at?: DateLike;
+  /** Modelin [anlaşılmıyor] yazdığı yer sayısı ve kullanıcının doldurduğu; eski işlerde yok. */
+  unclear_count?: number | null;
+  unclear_resolved?: number;
+}
+
+export interface UnclearSpot {
+  /** "<segment>-<segmentteki sırası>"; orijinal transkripte göre sabit */
+  id: string;
+  segment_id: number;
+  start: number;
+  end: number;
+  /** Oynatılacak aralık: zaman damgaları kayabildiği için segmentten biraz geniş */
+  play_start: number;
+  play_end: number;
+  speaker: string | null;
+  /** Segmentin orijinal metni ([anlaşılmıyor] dahil) */
+  text: string;
+  before: string | null;
+  after: string | null;
+  correction: string | null;
+}
+
+export interface UnclearResponse {
+  total: number;
+  resolved: number;
+  spots: UnclearSpot[];
+  /** Kaynak ses; yükleme 7 gün sonra silinince null */
+  media: { url: string; content_type: string | null; expires_at: string } | null;
+  /** Bu tarihten sonra düzeltme kaydedilemez */
+  editable_until: string | null;
 }
 
 export type CreditTxType =
   | "admin_grant"
+  | "license_key"
+  /** Kaldırılan kayıt bonusu; eski hesapların geçmişinde görünür */
   | "signup_bonus"
   | "job_hold"
-  | "job_refund"
-  | "job_adjust"
-  | "subscription_grant"
-  | "subscription_expire"
-  | "topup_purchase";
+  | "job_refund";
+
+export interface LicenseKey {
+  /** BUS-XXXX-XXXX-XXXX */
+  key: string;
+  credits: number;
+  /** Üretilirken seçilen paketin adı; özel anahtarda yok */
+  package?: string | null;
+  status: "active" | "redeemed" | "revoked";
+  /** Yöneticinin notu (müşteri adı, sipariş) */
+  note?: string | null;
+  created_at?: DateLike;
+  redeemed_by?: string | null;
+  redeemed_email?: string | null;
+  redeemed_at?: DateLike;
+}
 
 export interface CreditTransaction {
   id: string;

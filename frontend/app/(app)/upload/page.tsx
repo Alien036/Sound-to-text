@@ -1,13 +1,14 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, AudioLines, Clock3, Coins, FileAudio, FileVideo, Info, Users, X } from "lucide-react";
+import { AlertTriangle, Clock3, Coins, FileAudio, FileVideo, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common";
 import { Button } from "@/components/ui/button";
+import { AnimatedNumber, AnimatePresence, motion, SoundWave, SPRING_SNAPPY } from "@/components/ui/motion";
 import { Card, CardContent, Label, Progress, Select, Skeleton, Textarea } from "@/components/ui/primitives";
 import { takePendingFile, UploadDropzone } from "@/components/upload-dropzone";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -21,13 +22,13 @@ import {
 } from "@/lib/extract-audio";
 import { useBalance, usePricing } from "@/lib/hooks/use-me";
 import { estimateModelCredits, useModels } from "@/lib/hooks/use-models";
-import type { ModelDetail } from "@/lib/types";
 import {
   getMediaDuration,
   guessMime,
   rememberLocalMedia,
   uploadWithProgress,
 } from "@/lib/media";
+import type { ModelDetail } from "@/lib/types";
 import { cn, formatBytes, formatCredits, formatDuration } from "@/lib/utils";
 
 type Stage = "idle" | "ready" | "extracting" | "uploading" | "creating";
@@ -52,7 +53,6 @@ function storeModel(id: string) {
   }
 }
 
-/** 402 insufficient_credits: detail.balance ve detail.required ile açıklayıcı mesaj. */
 function insufficientMessage(e: ApiError): string {
   const d = (e.detail as { detail?: { balance?: number; required?: number } } | undefined)?.detail;
   if (typeof d?.required === "number" && typeof d?.balance === "number") {
@@ -111,7 +111,6 @@ export default function UploadPage() {
     setAudioSize(null);
   }
 
-  // Kayıtlı/seçili model artık listede yoksa backend'in default_model'ine dön.
   const selected: ModelDetail | undefined =
     models.find((m) => m.id === pickedModel) ?? models.find((m) => m.id === defaultModel);
   const model = selected?.id;
@@ -142,7 +141,6 @@ export default function UploadPage() {
           });
           if (uploadFile !== file) setAudioSize(uploadFile.size);
         } catch (e) {
-          // Ayrıştırma olmadıysa ve dosya sınırın altındaysa orijinali yükle.
           if (isAbort(e) || e instanceof NoAudioError || file.size > maxBytes) throw e;
           if (!(e instanceof FFmpegUnavailableError)) {
             toast.warning("Ses ayrıştırılamadı, dosyanın kendisi yükleniyor.");
@@ -195,190 +193,194 @@ export default function UploadPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <PageHeader title="Yeni yükleme" description="Ses ya da video dosyanızı yükleyin, metne dönüştürelim." />
+      <PageHeader title="Yeni yükleme" />
 
-      {!file ? (
-        <UploadDropzone onFile={selectFile} />
-      ) : (
-        <Card>
-          <CardContent className="space-y-6">
-            <div className="flex items-center gap-4">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-50 text-brand-500">
-                <FileIcon className="size-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-ink-900">{file.name}</p>
-                <p className="text-sm text-ink-500">
-                  {formatBytes(file.size)}
-                  {audioSize != null && <span className="text-brand-600"> → {formatBytes(audioSize)} ses</span>} ·{" "}
-                  {duration === undefined ? "süre ölçülüyor…" : duration ? formatDuration(duration) : "süre okunamadı"}
-                </p>
-              </div>
-              {!busy && (
-                <Button variant="ghost" size="icon" onClick={reset} title="Dosyayı kaldır">
-                  <X />
-                </Button>
-              )}
-            </div>
-
-            {willExtract && (
-              <p className="flex items-start gap-2.5 rounded-xl bg-brand-50 px-3 py-2.5 text-sm text-brand-700">
-                <AudioLines className="mt-0.5 size-4 shrink-0" />
-                <span>
-                  {isVideo
-                    ? "Yüklemeyi hızlandırmak için videonun sesi tarayıcınızda ayrılacak, kalite kaybı olmadan."
-                    : "Büyük WAV dosyası yüklemeden önce tarayıcınızda sıkıştırılacak."}{" "}
-                  İlk seferde ses işleyici (~30 MB) indirilir. Bu sırada sekmeyi kapatmayın.
-                </span>
-              </p>
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
-              <div>
-                <Label htmlFor="lang">Dil</Label>
-                <Select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={busy}>
-                  {LANGUAGES.map((l) => (
-                    <option key={l.value} value={l.value}>
-                      {l.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <div className="flex items-baseline justify-between">
-                  <Label htmlFor="context">Kayıt hakkında kısa bilgi (isteğe bağlı)</Label>
-                  <span className="text-xs tabular-nums text-ink-400">
-                    {context.length}/{CONTEXT_MAX_LENGTH}
+      <AnimatePresence mode="wait">
+        {!file ? (
+          <motion.div
+            key="dropzone"
+            initial={{ opacity: 0, y: 10, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.99 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <UploadDropzone onFile={selectFile} />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, y: 12, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.99 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Card>
+              <CardContent className="space-y-6">
+                <div className="flex items-center gap-4 rounded-2xl border border-ink-100 bg-ink-50/50 p-3.5">
+                  <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-brand-500 text-white shadow-sm shadow-brand-500/25">
+                    {busy ? <SoundWave bars={4} className="h-4" barClassName="bg-white" /> : <FileIcon className="size-5" />}
                   </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-ink-900">{file.name}</p>
+                    <p className="text-sm text-ink-500">
+                      {formatBytes(file.size)}
+                      {audioSize != null && <span className="text-brand-600"> → {formatBytes(audioSize)}</span>} ·{" "}
+                      {duration === undefined ? "…" : duration ? formatDuration(duration) : "—"}
+                    </p>
+                  </div>
+                  {!busy && (
+                    <Button variant="ghost" size="icon" onClick={reset} title="Dosyayı kaldır">
+                      <X />
+                    </Button>
+                  )}
                 </div>
-                <Textarea
-                  id="context"
-                  rows={2}
-                  maxLength={CONTEXT_MAX_LENGTH}
-                  value={context}
-                  onChange={(e) => setContext(e.target.value)}
-                  disabled={busy}
-                  placeholder="Ör. Psikolojik danışmanlık görüşmesi. Süpervizör: Gökhan Hoca. Geçen terimler: YKS, yurt."
-                />
-                <p className="mt-1 text-xs text-ink-400">
-                  Konu ve geçen özel isimler/terimler, doğru yazılma ihtimalini artırır.
-                </p>
-              </div>
-            </div>
 
-            <div>
-              <Label>Model</Label>
-              {modelsLoaded ? (
-                <div className={cn("grid gap-2", models.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-                  {models.map((m) => (
-                    <ModelCard
-                      key={m.id}
-                      model={m}
-                      selected={model === m.id}
-                      recommended={m.id === defaultModel}
-                      duration={duration}
-                      balance={balance}
+                <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+                  <div>
+                    <Label htmlFor="lang">Dil</Label>
+                    <Select id="lang" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={busy}>
+                      {LANGUAGES.map((l) => (
+                        <option key={l.value} value={l.value}>
+                          {l.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <div className="flex items-baseline justify-between">
+                      <Label htmlFor="context">Bağlam (isteğe bağlı)</Label>
+                      <span className="text-xs tabular-nums text-ink-400">
+                        {context.length}/{CONTEXT_MAX_LENGTH}
+                      </span>
+                    </div>
+                    <Textarea
+                      id="context"
+                      rows={2}
+                      maxLength={CONTEXT_MAX_LENGTH}
+                      value={context}
+                      onChange={(e) => setContext(e.target.value)}
                       disabled={busy}
-                      onSelect={() => chooseModel(m.id)}
+                      placeholder="Özel isimler, teknik terimler, konu…"
                     />
-                  ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-36" />
-                  ))}
+
+                <div>
+                  <Label>Model</Label>
+                  {modelsLoaded ? (
+                    <div className={cn("grid gap-2.5", models.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+                      {models.map((m) => (
+                        <ModelCard
+                          key={m.id}
+                          model={m}
+                          selected={model === m.id}
+                          recommended={m.id === defaultModel}
+                          duration={duration}
+                          balance={balance}
+                          disabled={busy}
+                          onSelect={() => chooseModel(m.id)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid gap-2.5 sm:grid-cols-3">
+                      {[0, 1, 2].map((i) => (
+                        <Skeleton key={i} className="h-36" />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-              {selected && !selected.precise_timestamps && (
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
-                  <Info className="size-3.5 shrink-0" />
-                  Altyazı (SRT) için zaman damgaları birkaç saniye kayabilir.
-                </p>
-              )}
-            </div>
 
-            {/* Maliyet özeti */}
-            <div className="grid grid-cols-3 divide-x divide-ink-100 rounded-2xl bg-ink-50">
-              <Stat icon={<Clock3 />} label="Süre" value={duration ? formatDuration(duration) : "—"} />
-              <Stat
-                icon={<Coins />}
-                label="Tahmini maliyet"
-                value={cost != null ? `${formatCredits(cost)} kredi` : "—"}
-                highlight
-              />
-              <Stat
-                icon={<Coins />}
-                label="Bakiye"
-                value={balance != null ? `${formatCredits(balance)} kredi` : "—"}
-                danger={insufficient}
-              />
-            </div>
+                {/* Maliyet özeti */}
+                <div className="grid grid-cols-3 divide-x divide-ink-200/60 rounded-2xl border border-ink-100 bg-ink-50/60">
+                  <Stat icon={<Clock3 />} label="Süre" value={duration ? formatDuration(duration) : "—"} />
+                  <Stat
+                    icon={<Coins />}
+                    label="Maliyet"
+                    value={cost != null ? <><AnimatedNumber value={cost} /> kredi</> : "—"}
+                    highlight
+                  />
+                  <Stat
+                    icon={<Coins />}
+                    label="Bakiye"
+                    value={balance != null ? <><AnimatedNumber value={balance} /> kredi</> : "—"}
+                    danger={insufficient}
+                  />
+                </div>
 
-            {duration === null && (
-              <Notice>Tarayıcı süreyi okuyamadı; kesin maliyet sunucuda hesaplanacak.</Notice>
-            )}
-            {tooLong && (
-              <Notice tone="accent">Kayıt en fazla {formatDuration(pricing.max_duration_sec)} olabilir.</Notice>
-            )}
-            {tooBig && <Notice tone="accent">Dosya en fazla {formatBytes(maxBytes)} olabilir.</Notice>}
-            {insufficient && (
-              <Notice tone="accent">
-                Seçili model için krediniz yetmiyor. Daha uygun bir model seçebilir ya da{" "}
-                <Link href="/credits" className="font-medium underline">
-                  kredi yükletebilirsiniz
-                </Link>
-                .
-              </Notice>
-            )}
+                {tooLong && (
+                  <Notice tone="accent">Kayıt en fazla {formatDuration(pricing.max_duration_sec)} olabilir.</Notice>
+                )}
+                {tooBig && <Notice tone="accent">Dosya en fazla {formatBytes(maxBytes)} olabilir.</Notice>}
+                {insufficient && (
+                  <Notice tone="accent">
+                    Seçili model için krediniz yetersiz.{" "}
+                    <Link href="/credits" className="font-medium underline">
+                      Krediler
+                    </Link>
+                  </Notice>
+                )}
 
-            {stage === "extracting" && (
-              <ProgressRow
-                label={
-                  extractPhase === "loading"
-                    ? "Ses işleyici hazırlanıyor…"
-                    : extractPhase === "copying"
-                      ? "Ses ayrıştırılıyor…"
-                      : "Ses dönüştürülüyor…"
-                }
-                pct={extractPhase === "loading" ? null : extractPct}
-              />
-            )}
-            {stage === "uploading" && <ProgressRow label="Yükleniyor" pct={progress} />}
+                <AnimatePresence>
+                  {stage === "extracting" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <ProgressRow
+                        label={
+                          extractPhase === "loading"
+                            ? "Hazırlanıyor…"
+                            : extractPhase === "copying"
+                              ? "Ses ayrıştırılıyor…"
+                              : "Ses dönüştürülüyor…"
+                        }
+                        pct={extractPhase === "loading" ? null : extractPct}
+                      />
+                    </motion.div>
+                  )}
+                  {stage === "uploading" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
+                      <ProgressRow label="Yükleniyor" pct={progress} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              {busy && (
-                <Button variant="ghost" onClick={reset}>
-                  İptal
-                </Button>
-              )}
-              <Button
-                size="lg"
-                onClick={start}
-                loading={busy}
-                disabled={busy || !model || duration === undefined || insufficient || tooLong || tooBig}
-              >
-                {stage === "extracting"
-                  ? "Ses ayrıştırılıyor…"
-                  : stage === "uploading"
-                    ? "Yükleniyor…"
-                    : stage === "creating"
-                      ? "İş oluşturuluyor…"
-                      : "Metne dönüştür"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <p className="mt-4 text-center text-xs text-ink-400">
-        {pricing.credits_per_minute} kredi = 1 dakika · süre yukarı yuvarlanır · iş başarısız olursa kredi iade edilir
-      </p>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  {busy && (
+                    <Button variant="ghost" onClick={reset}>
+                      İptal
+                    </Button>
+                  )}
+                  <Button
+                    size="lg"
+                    onClick={start}
+                    loading={busy}
+                    disabled={busy || !model || duration === undefined || insufficient || tooLong || tooBig}
+                  >
+                    {stage === "extracting"
+                      ? "Hazırlanıyor…"
+                      : stage === "uploading"
+                        ? "Yükleniyor…"
+                        : stage === "creating"
+                          ? "Başlatılıyor…"
+                          : "Metne dönüştür"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-/** 1–3 arası değeri üç çubukla gösterir (0 = bilinmiyor, gösterilmez). */
 function Meter({ label, value }: { label: string; value: number }) {
   if (!value) return null;
   return (
@@ -386,7 +388,13 @@ function Meter({ label, value }: { label: string; value: number }) {
       <span className="text-ink-500">{label}</span>
       <span className="flex gap-0.5">
         {[1, 2, 3].map((i) => (
-          <span key={i} className={cn("h-1.5 w-3 rounded-full", i <= value ? "bg-brand-500" : "bg-ink-200")} />
+          <span
+            key={i}
+            className={cn(
+              "h-1.5 w-3 rounded-full transition-colors duration-300",
+              i <= value ? "bg-brand-500" : "bg-ink-200",
+            )}
+          />
         ))}
       </span>
     </span>
@@ -413,18 +421,31 @@ function ModelCard({
   const cost = duration ? estimateModelCredits(duration, m) : null;
   const short = cost != null && balance != null && cost > balance;
   return (
-    <button
+    <motion.button
       type="button"
       disabled={disabled}
       onClick={onSelect}
+      whileHover={disabled ? undefined : { y: -2 }}
+      whileTap={disabled ? undefined : { scale: 0.985 }}
+      transition={SPRING_SNAPPY}
       aria-pressed={selected}
       className={cn(
-        "flex flex-col rounded-2xl border p-4 text-left transition-colors disabled:opacity-60",
-        selected ? "border-brand-500 bg-brand-50 ring-1 ring-brand-500" : "border-ink-200 hover:bg-ink-50",
+        "relative flex cursor-pointer flex-col rounded-2xl border p-4 text-left transition-colors disabled:pointer-events-none disabled:opacity-60",
+        selected ? "border-transparent" : "border-ink-200/80 bg-white hover:border-ink-300 hover:bg-ink-50/40",
       )}
     >
+      {selected && (
+        <motion.span
+          layoutId="upload-model-active"
+          transition={SPRING_SNAPPY}
+          className="absolute inset-0 -z-10 rounded-2xl border-2 border-brand-500 bg-brand-50/60 shadow-sm shadow-brand-500/10"
+        />
+      )}
+
       <span className="flex items-start justify-between gap-2">
-        <span className={cn("font-semibold", selected ? "text-brand-700" : "text-ink-900")}>{m.label}</span>
+        <span className={cn("font-semibold transition-colors", selected ? "text-brand-700" : "text-ink-900")}>
+          {m.label}
+        </span>
         {recommended && (
           <span className="shrink-0 rounded-full bg-accent-500 px-2 py-0.5 text-[10px] font-semibold text-white">
             Önerilen
@@ -439,7 +460,7 @@ function ModelCard({
 
       {m.speakers && (
         <span className="mt-2 inline-flex w-fit items-center gap-1 rounded-full bg-ink-900 px-2 py-0.5 text-[11px] font-medium text-white">
-          <Users className="size-3" /> Konuşmacıları ayırır
+          <Users className="size-3" /> Konuşmacı ayrımı
         </span>
       )}
 
@@ -449,13 +470,9 @@ function ModelCard({
         <span className="block text-sm font-semibold tabular-nums text-ink-900">
           {cost != null ? `${formatCredits(cost)} kredi` : `${formatCredits(m.credits_per_minute)} kredi / dk`}
         </span>
-        {short && (
-          <span className="mt-0.5 block text-xs font-medium text-accent-600">
-            Yetersiz kredi (bakiye: {formatCredits(balance)})
-          </span>
-        )}
+        {short && <span className="mt-0.5 block text-xs font-medium text-accent-600">Yetersiz bakiye</span>}
       </span>
-    </button>
+    </motion.button>
   );
 }
 
@@ -486,7 +503,7 @@ function Stat({
 }: {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value: React.ReactNode;
   highlight?: boolean;
   danger?: boolean;
 }) {
@@ -512,8 +529,10 @@ function Notice({ children, tone = "neutral" }: { children: React.ReactNode; ton
   return (
     <p
       className={cn(
-        "flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm",
-        tone === "accent" ? "bg-accent-50 text-accent-700" : "bg-ink-50 text-ink-600",
+        "flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset",
+        tone === "accent"
+          ? "bg-accent-50 text-accent-700 ring-accent-200/60"
+          : "bg-ink-50 text-ink-600 ring-ink-200/60",
       )}
     >
       <AlertTriangle className="mt-0.5 size-4 shrink-0" />

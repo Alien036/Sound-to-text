@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { FirebaseError } from "firebase/app";
 import {
   createUserWithEmailAndPassword,
@@ -12,10 +13,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FullPageSpinner, Logo } from "@/components/common";
+import { TermsConsent } from "@/components/terms-consent";
 import { Button } from "@/components/ui/button";
+import { AnimatePresence, FadeIn, motion, SlidingTabs } from "@/components/ui/motion";
 import { Input, Label } from "@/components/ui/primitives";
+import { api } from "@/lib/api";
 import { auth, googleProvider } from "@/lib/firebase";
 import { useAuth } from "@/lib/hooks/use-auth";
+import { LEGAL_DOCS, TERMS_VERSION } from "@/lib/legal";
 import { cn } from "@/lib/utils";
 
 const AUTH_ERRORS: Record<string, string> = {
@@ -47,10 +52,16 @@ function GoogleIcon() {
   );
 }
 
+const AUTH_MODES = [
+  { value: "signin", label: "Giriş yap" },
+  { value: "signup", label: "Kayıt ol" },
+] as const;
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, loading } = useAuth();
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<"signin" | "signup">(
     params.get("mode") === "signup" ? "signup" : "signin",
   );
@@ -59,20 +70,31 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState<"email" | "google" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [consent, setConsent] = useState(false);
+  const needsConsent = mode === "signup" && !consent;
 
-  // Yalnızca site içi yollara yönlendir (açık yönlendirmeye karşı).
   const rawNext = params.get("next");
   const next = rawNext?.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
 
   useEffect(() => {
-    if (!loading && user) router.replace(next);
-  }, [loading, user, next, router]);
+    if (!loading && user && busy === null) router.replace(next);
+  }, [loading, user, busy, next, router]);
+
+  async function recordConsent(uid: string) {
+    try {
+      const me = await api.acceptTerms(TERMS_VERSION);
+      queryClient.setQueryData(["me", uid], me);
+    } catch {
+      // yoksay
+    }
+  }
 
   async function onGoogle() {
     setError(null);
     setBusy("google");
     try {
-      await signInWithPopup(auth, googleProvider);
+      const cred = await signInWithPopup(auth, googleProvider);
+      if (mode === "signup") await recordConsent(cred.user.uid);
     } catch (e) {
       setError(authError(e));
     } finally {
@@ -88,6 +110,7 @@ function LoginForm() {
       if (mode === "signup") {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         if (name.trim()) await updateProfile(cred.user, { displayName: name.trim() });
+        await recordConsent(cred.user.uid);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -114,44 +137,80 @@ function LoginForm() {
   if (loading || user) return <FullPageSpinner />;
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-2">
+    <div className="grid min-h-dvh bg-white lg:grid-cols-2">
       <div className="flex flex-col px-6 py-8 sm:px-12">
         <Logo />
-        <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink-900">
+        <FadeIn className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
+          <SlidingTabs
+            layoutId="login-mode"
+            variant="surface"
+            options={AUTH_MODES}
+            value={mode}
+            onChange={(m) => {
+              setMode(m);
+              setError(null);
+            }}
+            className="grid w-full grid-cols-2"
+          />
+
+          <h1 className="mt-7 text-2xl font-semibold tracking-tight text-ink-900">
             {mode === "signin" ? "Tekrar hoş geldin" : "Hesap oluştur"}
           </h1>
-          <p className="mt-1.5 text-sm text-ink-500">
-            {mode === "signin"
-              ? "Transkriptlerine kaldığın yerden devam et."
-              : "Kayıt ol, ilk dakikaların bizden."}
-          </p>
+
+          <AnimatePresence initial={false}>
+            {mode === "signup" && (
+              <motion.div
+                key="consent"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="mt-5 rounded-xl border border-ink-200/70 bg-ink-50/40 p-3.5">
+                  <TermsConsent checked={consent} onChange={setConsent} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <Button
             variant="outline"
             size="lg"
-            className="mt-8 w-full"
+            className="mt-5 w-full"
             onClick={onGoogle}
             loading={busy === "google"}
-            disabled={busy !== null}
+            disabled={busy !== null || needsConsent}
           >
             {busy !== "google" && <GoogleIcon />}
             Google ile devam et
           </Button>
 
-          <div className="my-6 flex items-center gap-3 text-xs text-ink-400">
+          <div className="my-5 flex items-center gap-3 text-xs text-ink-400">
             <span className="h-px flex-1 bg-ink-100" />
             veya e-posta ile
             <span className="h-px flex-1 bg-ink-100" />
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div>
-                <Label htmlFor="name">Ad soyad</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-              </div>
-            )}
+            <AnimatePresence initial={false}>
+              {mode === "signup" && (
+                <motion.div
+                  key="name"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div className="pb-1">
+                    <Label htmlFor="name">Ad soyad</Label>
+                    <Input id="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <div>
               <Label htmlFor="email">E-posta</Label>
               <Input
@@ -164,6 +223,7 @@ function LoginForm() {
                 placeholder="ornek@eposta.com"
               />
             </div>
+
             <div>
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Şifre</Label>
@@ -171,7 +231,7 @@ function LoginForm() {
                   <button
                     type="button"
                     onClick={onReset}
-                    className="mb-1.5 text-xs font-medium text-brand-600 hover:underline"
+                    className="mb-1.5 cursor-pointer text-xs font-medium text-brand-600 hover:underline"
                   >
                     Şifremi unuttum
                   </button>
@@ -188,47 +248,62 @@ function LoginForm() {
               />
             </div>
 
-            {error && (
-              <p className="rounded-xl bg-accent-50 px-3 py-2.5 text-sm text-accent-700">{error}</p>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="rounded-xl bg-accent-50 px-3.5 py-2.5 text-sm text-accent-700 ring-1 ring-inset ring-accent-200/60"
+                >
+                  {error}
+                </motion.p>
+              )}
+            </AnimatePresence>
 
-            <Button type="submit" size="lg" className="w-full" loading={busy === "email"} disabled={busy !== null}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              loading={busy === "email"}
+              disabled={busy !== null || needsConsent}
+            >
               {mode === "signin" ? "Giriş yap" : "Kayıt ol"}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-ink-500">
-            {mode === "signin" ? "Hesabın yok mu?" : "Zaten hesabın var mı?"}{" "}
-            <button
-              onClick={() => {
-                setMode(mode === "signin" ? "signup" : "signin");
-                setError(null);
-              }}
-              className="font-medium text-brand-600 hover:underline"
-            >
-              {mode === "signin" ? "Kayıt ol" : "Giriş yap"}
-            </button>
-          </p>
-        </div>
+          <nav className="mt-8 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-ink-400">
+            {LEGAL_DOCS.map((d) => (
+              <a key={d.slug} href={`/legal/${d.slug}`} target="_blank" className="transition-colors hover:text-ink-700">
+                {d.title}
+              </a>
+            ))}
+          </nav>
+        </FadeIn>
       </div>
 
       <div className="relative hidden overflow-hidden bg-ink-900 lg:block">
-        <div className="absolute -right-24 -top-24 size-96 rounded-full bg-brand-500/30 blur-3xl" />
-        <div className="absolute -bottom-32 left-10 size-80 rounded-full bg-accent-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 -top-24 size-96 animate-aurora rounded-full bg-brand-500/35 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 left-10 size-80 animate-aurora rounded-full bg-accent-500/25 blur-3xl [animation-delay:-6s]" />
         <div className="relative flex h-full flex-col justify-end p-14">
-          <div className="flex h-20 items-end gap-1.5">
-            {[30, 55, 40, 80, 62, 95, 70, 45, 85, 50, 66, 38, 74, 58, 90, 42, 60, 35].map((h, i) => (
-              <span
-                key={i}
-                className={cn("w-2 rounded-full", i % 5 === 3 ? "bg-accent-500" : "bg-brand-400")}
-                style={{ height: `${h}%` }}
-              />
-            ))}
+          <div className="w-fit rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-md">
+            <div className="flex h-16 items-end gap-1.5">
+              {[30, 55, 40, 80, 62, 95, 70, 45, 85, 50, 66, 38, 74, 58, 90, 42, 60, 35].map((h, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "w-2 origin-bottom animate-wave rounded-full",
+                    i % 5 === 3 ? "bg-accent-400" : "bg-brand-400",
+                  )}
+                  style={{ height: `${h}%`, animationDelay: `${(i % 6) * -0.23}s` }}
+                />
+              ))}
+            </div>
           </div>
-          <p className="mt-10 max-w-md text-3xl font-semibold leading-tight tracking-tight text-white">
+          <p className="mt-8 max-w-md text-3xl font-semibold leading-tight tracking-tight text-white">
             “Bir saatlik röportajı yazıya dökmek artık bir kahve molası kadar sürüyor.”
           </p>
-          <p className="mt-4 text-sm text-ink-300">Zaman damgalı, aranabilir, indirilebilir.</p>
+          <p className="mt-3 text-sm text-ink-300">Zaman damgalı · Aranabilir · İndirilebilir</p>
         </div>
       </div>
     </div>

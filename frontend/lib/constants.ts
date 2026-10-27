@@ -6,18 +6,16 @@ export const DEFAULT_PRICING: Pricing = {
   model_multipliers: {},
   max_duration_sec: 3 * 3600,
   max_file_mb: 2048,
-  signup_bonus: 5,
-  plan_price_try: 250,
-  plan_monthly_credits: 400,
-  topup_credits: 100,
-  topup_price_try: 60,
-  gpu_cost_per_minute_try: 0.083,
+  // /pricing yüklenene kadar (ve statik ana sayfada) backend varsayılanlarıyla aynı paketler
+  packages: [
+    { id: "baslangic", name: "Başlangıç", credits: 300, price_try: 149 },
+    { id: "standart", name: "Standart", credits: 900, price_try: 399 },
+    { id: "profesyonel", name: "Profesyonel", credits: 2400, price_try: 899 },
+  ],
 };
 
-/** Hedef: KDV ve komisyon düşüldükten sonra gelir ≥ 5 × GPU maliyeti. */
-export const TARGET_MARGIN = 5;
-export const KDV_RATE = 0.2;
-export const PAYMENT_FEE_RATE = 0.04;
+/** Lisans anahtarı satın almak için iletişim adresi (anahtarlar elle satılır). */
+export const SALES_EMAIL = "info@bustudio.dev";
 
 export const ACCEPTED_EXTENSIONS = [
   "mp3", "wav", "m4a", "ogg", "flac", "webm", "mp4", "mov", "mkv",
@@ -57,13 +55,10 @@ export const STATUS_LABELS: Record<JobStatus, string> = {
 
 export const TX_LABELS: Record<CreditTxType, string> = {
   admin_grant: "Yönetici yüklemesi",
+  license_key: "Lisans anahtarı",
   signup_bonus: "Hoş geldin bonusu",
   job_hold: "İş ücreti",
   job_refund: "İade",
-  job_adjust: "Süre düzeltmesi",
-  subscription_grant: "Aylık Pro kredisi",
-  subscription_expire: "Dönem sonu (kullanılmayan)",
-  topup_purchase: "Ek paket",
 };
 
 export const ACTIVE_STATUSES: JobStatus[] = ["uploaded", "queued", "processing"];

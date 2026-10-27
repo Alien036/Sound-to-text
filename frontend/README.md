@@ -1,4 +1,4 @@
-# Sesyaz — Frontend
+# Etheria — Frontend
 
 Next.js 15 (App Router) + TypeScript + Tailwind v4. Firebase Auth ile giriş, Firestore'dan canlı bakiye/iş durumu, FastAPI backend ile REST.
 
