@@ -49,7 +49,7 @@ function useDebounced<T>(value: T, ms = 300) {
 }
 
 export default function AlienAdminPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isOwner } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const q = useDebounced(search.trim());
@@ -110,11 +110,13 @@ export default function AlienAdminPage() {
                 <Workflow /> Tüm işler
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/admin/pricing">
-                <Settings2 /> Fiyatlandırma
-              </Link>
-            </Button>
+            {isOwner && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/pricing">
+                  <Settings2 /> Fiyatlandırma
+                </Link>
+              </Button>
+            )}
           </div>
         }
       />
@@ -209,9 +211,9 @@ export default function AlienAdminPage() {
                   <tr>
                     <Th>Kullanıcı</Th>
                     <Th className="text-right">Mevcut Token</Th>
-                    <Th>Hızlı Token Ayarla</Th>
+                    {isOwner && <Th>Hızlı Token Ayarla</Th>}
                     <Th className="text-right">Kayıt</Th>
-                    <Th className="text-right">İşlem</Th>
+                    {isOwner && <Th className="text-right">İşlem</Th>}
                   </tr>
                 </thead>
                 <tbody className="stagger">
@@ -219,6 +221,7 @@ export default function AlienAdminPage() {
                     <UserTokenRow
                       key={u.uid}
                       user={u}
+                      canEdit={isOwner}
                       onOpenModal={() => setSelected(u)}
                       onUpdated={refreshAll}
                     />
@@ -243,7 +246,7 @@ export default function AlienAdminPage() {
       </FadeIn>
 
       <TokenDialog
-        user={selected}
+        user={isOwner ? selected : null}
         onClose={() => setSelected(null)}
         onUpdated={refreshAll}
       />
@@ -253,10 +256,13 @@ export default function AlienAdminPage() {
 
 function UserTokenRow({
   user,
+  canEdit,
   onOpenModal,
   onUpdated,
 }: {
   user: AdminUser;
+  /** Kredi yükleme yalnızca owner'da; admin müşteriye lisans anahtarı üretir. */
+  canEdit: boolean;
   onOpenModal: () => void;
   onUpdated: () => void;
 }) {
@@ -335,6 +341,7 @@ function UserTokenRow({
         </span>
       </Td>
 
+      {canEdit && (
       <Td>
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -385,16 +392,19 @@ function UserTokenRow({
           </form>
         </div>
       </Td>
+      )}
 
       <Td className="whitespace-nowrap text-right text-xs text-ink-500">
         {formatDate(user.created_at)}
       </Td>
 
-      <Td className="text-right">
-        <Button size="sm" variant="outline" onClick={onOpenModal}>
-          <SlidersHorizontal /> Detaylı
-        </Button>
-      </Td>
+      {canEdit && (
+        <Td className="text-right">
+          <Button size="sm" variant="outline" onClick={onOpenModal}>
+            <SlidersHorizontal /> Detaylı
+          </Button>
+        </Td>
+      )}
     </tr>
   );
 }

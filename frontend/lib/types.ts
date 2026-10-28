@@ -18,6 +18,8 @@ export interface UserProfile {
   display_name?: string | null;
   credits_balance: number;
   is_admin?: boolean | null;
+  /** Owner: krediyi doğrudan yükleyebilen ve fiyatı değiştirebilen tek rol. */
+  is_owner?: boolean | null;
   created_at?: DateLike;
   disabled?: boolean;
   /** Kullanıcının onayladığı ve güncel yasal metin sürümü; farklıysa yeniden onay istenir. */
@@ -38,6 +40,18 @@ export interface Pricing {
   allowed_extensions?: string[];
   /** Lisans anahtarı olarak satılan tek seferlik kredi paketleri (ucuzdan pahalıya). */
   packages?: CreditPackage[];
+  /** Yalnızca /admin/pricing: model başına 1M token USD fiyatı */
+  model_costs?: Record<string, ModelCost>;
+  /** Yalnızca /admin/pricing: maliyet raporunda kullanılan USD→TL kuru */
+  usd_try?: number;
+  /** Yalnızca /admin/pricing: owner olmayan adminin 24 saatte anahtarla verebileceği kredi */
+  admin_daily_key_credits?: number;
+}
+
+export interface ModelCost {
+  input_usd_per_m: number;
+  /** Düşünme token'ları da bu fiyattan */
+  output_usd_per_m: number;
 }
 
 export interface CreditPackage {
@@ -141,6 +155,8 @@ export interface LicenseKey {
   /** Yöneticinin notu (müşteri adı, sipariş) */
   note?: string | null;
   created_at?: DateLike;
+  created_by?: string | null;
+  created_by_email?: string | null;
   redeemed_by?: string | null;
   redeemed_email?: string | null;
   redeemed_at?: DateLike;
@@ -195,4 +211,45 @@ export interface TranscriptJson {
   language_probability?: number | null;
   duration?: number;
   segments: TranscriptSegment[];
+}
+
+export interface UserCost {
+  uid: string;
+  email?: string | null;
+  credits_balance: number;
+  jobs: number;
+  completed_jobs: number;
+  minutes: number;
+  credits_spent: number;
+  input_tokens: number;
+  /** Düşünme dahil */
+  output_tokens: number;
+  cost_usd: number;
+  cost_try: number;
+  /** Token kaydı başlamadan önce tamamlanmış işler (maliyete dahil değil) */
+  untracked_jobs: number;
+  /** Bakiye tamamen Argon'la harcanırsa tahmini maliyet */
+  balance_risk_usd?: number | null;
+}
+
+export interface CostReport {
+  since: DateLike;
+  usd_try: number;
+  total_cost_usd: number;
+  total_cost_try: number;
+  total_balance_risk_usd?: number | null;
+  model_usd_per_minute: Record<string, number>;
+  users: UserCost[];
+}
+
+export interface CreditLogEntry {
+  id: string;
+  created_at?: DateLike;
+  uid: string;
+  email?: string | null;
+  amount: number;
+  balance_after: number;
+  admin_uid?: string | null;
+  admin_email?: string | null;
+  note?: string | null;
 }

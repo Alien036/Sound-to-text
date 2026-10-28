@@ -3,6 +3,7 @@
 import {
   Coins,
   KeyRound,
+  Receipt,
   LayoutDashboard,
   ListChecks,
   LogOut,
@@ -36,7 +37,8 @@ const ADMIN_NAV = [
   { href: "/alien", label: "Kullanıcılar & Token", icon: Users },
   { href: "/admin/keys", label: "Lisans anahtarları", icon: KeyRound },
   { href: "/admin/jobs", label: "Tüm işler", icon: Workflow },
-  { href: "/admin/pricing", label: "Fiyatlandırma", icon: Settings2 },
+  { href: "/admin/costs", label: "Maliyet", icon: Receipt },
+  { href: "/admin/pricing", label: "Fiyatlandırma", icon: Settings2, ownerOnly: true },
 ];
 
 function NavLink({
@@ -83,7 +85,7 @@ function Sidebar({
   pillId: string;
   onNavigate?: () => void;
 }) {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, isOwner, signOut } = useAuth();
   const pathname = usePathname();
   const showAdminNav = isAdmin || pathname.startsWith("/alien") || pathname.startsWith("/admin");
 
@@ -108,7 +110,7 @@ function Sidebar({
             Yönetim
           </p>
           <nav className="flex flex-col gap-1">
-            {ADMIN_NAV.map((n) => (
+            {ADMIN_NAV.filter((n) => isOwner || !n.ownerOnly).map(({ ownerOnly: _, ...n }) => (
               <NavLink key={n.href} {...n} pillId={pillId} />
             ))}
           </nav>

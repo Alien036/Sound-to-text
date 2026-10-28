@@ -9,6 +9,8 @@ import { auth } from "@/lib/firebase";
 interface AuthState {
   user: User | null;
   isAdmin: boolean;
+  /** Kredi yükleme ve fiyat değiştirme yalnızca owner'da (backend de zorunlu kılar). */
+  isOwner: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -18,6 +20,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [claimAdmin, setClaimAdmin] = useState(false);
+  const [claimOwner, setClaimOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const qc = useQueryClient();
 
@@ -27,8 +30,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(u);
       if (u) {
         const token = await u.getIdTokenResult();
-        setClaimAdmin(token.claims.admin === true);
+        setClaimOwner(token.claims.owner === true);
+        setClaimAdmin(token.claims.admin === true || token.claims.owner === true);
       } else {
+        setClaimOwner(false);
         setClaimAdmin(false);
       }
       setLoading(false);
@@ -43,18 +48,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const isAdmin = claimAdmin || me.data?.is_admin === true;
+  const isOwner = claimOwner || me.data?.is_owner === true;
 
   const value = useMemo<AuthState>(
     () => ({
       user,
       isAdmin,
+      isOwner,
       loading,
       signOut: async () => {
         await fbSignOut(auth);
         qc.clear();
       },
     }),
-    [user, isAdmin, loading, qc],
+    [user, isAdmin, isOwner, loading, qc],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

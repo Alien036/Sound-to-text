@@ -24,11 +24,18 @@ const SCALAR_FIELDS = [
   "credits_per_minute",
   "max_duration_min",
   "max_file_mb",
+  "usd_try",
+  "admin_daily_key_credits",
 ] as const;
 type ScalarField = (typeof SCALAR_FIELDS)[number];
 
 type PackageForm = { id: string; name: string; credits: string; price_try: string };
-type Form = Record<ScalarField, string> & { multipliers: Record<string, string>; packages: PackageForm[] };
+type CostForm = { input_usd_per_m: string; output_usd_per_m: string };
+type Form = Record<ScalarField, string> & {
+  multipliers: Record<string, string>;
+  packages: PackageForm[];
+  costs: Record<string, CostForm>;
+};
 
 function toForm(raw: Pricing): Form {
   const p = { ...DEFAULT_PRICING, ...raw };
@@ -36,6 +43,14 @@ function toForm(raw: Pricing): Form {
     credits_per_minute: String(p.credits_per_minute),
     max_duration_min: String(Math.round(p.max_duration_sec / 60)),
     max_file_mb: String(p.max_file_mb),
+    usd_try: String(p.usd_try ?? 42),
+    admin_daily_key_credits: String(p.admin_daily_key_credits ?? 5000),
+    costs: Object.fromEntries(
+      Object.entries(p.model_costs ?? {}).map(([k, c]) => [
+        k,
+        { input_usd_per_m: String(c.input_usd_per_m), output_usd_per_m: String(c.output_usd_per_m) },
+      ]),
+    ),
     multipliers: Object.fromEntries(
       [...new Set([...(p.models ?? []), ...Object.keys(p.model_multipliers)])].map((k) => [
         k,
@@ -57,6 +72,14 @@ function fromForm(f: Form): Pricing {
     credits_per_minute: n("credits_per_minute"),
     max_duration_sec: Math.round(n("max_duration_min") * 60),
     max_file_mb: n("max_file_mb"),
+    usd_try: n("usd_try"),
+    admin_daily_key_credits: Math.floor(n("admin_daily_key_credits")),
+    model_costs: Object.fromEntries(
+      Object.entries(f.costs).map(([k, c]) => [
+        k,
+        { input_usd_per_m: Number(c.input_usd_per_m), output_usd_per_m: Number(c.output_usd_per_m) },
+      ]),
+    ),
     model_multipliers: Object.fromEntries(Object.entries(f.multipliers).map(([k, v]) => [k, Number(v)])),
     packages: f.packages.map((k) => ({
       id: k.id,
@@ -82,10 +105,15 @@ export default function AdminPricingPage() {
     e.preventDefault();
     if (!form) return;
     const body = fromForm(form);
-    const { model_multipliers, packages = [], models: _m, allowed_extensions: _e, model_details: _d, default_model: _dm, ...rest } = body;
+    const { model_multipliers, packages = [], model_costs = {}, admin_daily_key_credits = 0, models: _m, allowed_extensions: _e, model_details: _d, default_model: _dm, ...rest } = body;
     const nums: number[] = [...Object.values(rest), ...Object.values(model_multipliers), ...packages.map((k) => k.credits)];
     if (nums.some((n) => !Number.isFinite(n) || n <= 0)) {
       toast.error("Tüm değerler pozitif sayı olmalı.");
+      return;
+    }
+    const costNums = Object.values(model_costs).flatMap((c) => [c.input_usd_per_m, c.output_usd_per_m]);
+    if (!Number.isFinite(admin_daily_key_credits) || admin_daily_key_credits < 0 || costNums.some((n) => !Number.isFinite(n) || n < 0)) {
+      toast.error("Token fiyatları ve günlük limit negatif olamaz.");
       return;
     }
     if (packages.some((k) => !k.name || !Number.isFinite(k.price_try) || k.price_try < 0)) {
@@ -200,6 +228,48 @@ export default function AdminPricingPage() {
                   <CardContent className="grid gap-4 sm:grid-cols-2">
                     <Field id="dur" label="En uzun süre (dakika)" value={form.max_duration_min} onChange={set("max_duration_min")} step="1" />
                     <Field id="size" label="En büyük dosya (MB)" value={form.max_file_mb} onChange={set("max_file_mb")} step="1" />
+                  </CardContent>
+                </Card>
+              </StaggerItem>
+
+              <StaggerItem>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Maliyet ve admin sınırı</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-ink-500">
+                      Vertex AI'nin 1M token fiyatı (USD); maliyet raporu bunlarla hesaplanır. Düşünme token'ları
+                      çıkış fiyatındandır. Google fiyat değiştirince burayı güncelleyin.
+                    </p>
+                    {Object.entries(form.costs).map(([k, c]) => (
+                      <div key={k} className="grid gap-3 sm:grid-cols-2">
+                        {(["input_usd_per_m", "output_usd_per_m"] as const).map((field) => (
+                          <Field
+                            key={field}
+                            id={`cost-${k}-${field}`}
+                            label={`${modelName(k)} · ${field === "input_usd_per_m" ? "giriş" : "çıkış"} $/1M`}
+                            value={c[field]}
+                            step="0.01"
+                            onChange={(e) =>
+                              setForm((f) =>
+                                f ? { ...f, costs: { ...f.costs, [k]: { ...f.costs[k], [field]: e.target.value } } } : f,
+                              )
+                            }
+                          />
+                        ))}
+                      </div>
+                    ))}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field id="usd-try" label="1 USD kaç TL" value={form.usd_try} onChange={set("usd_try")} step="0.01" />
+                      <Field
+                        id="daily-key"
+                        label="Admin günlük anahtar kredisi"
+                        value={form.admin_daily_key_credits}
+                        onChange={set("admin_daily_key_credits")}
+                        step="1"
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               </StaggerItem>

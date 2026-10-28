@@ -6,6 +6,8 @@ import type {
   Job,
   JobStatus,
   LicenseKey,
+  CostReport,
+  CreditLogEntry,
   MeResponse,
   Paginated,
   Pricing,
@@ -187,6 +189,10 @@ export const api = {
       request<Job>("POST", `/admin/jobs/${encodeURIComponent(id)}/fail`, {
         body: reason ? { reason } : {},
       }),
+    /** Kullanıcı başına Gemini maliyeti (token × fiyat / 1M). */
+    costs: (days = 30) => request<CostReport>("GET", "/admin/costs", { query: { days } }),
+    /** Elle yapılan bakiye değişiklikleri: kim, kime, ne kadar. */
+    creditLog: (limit = 100) => request<CreditLogEntry[]>("GET", "/admin/credit-log", { query: { limit } }),
     getPricing: () => request<Pricing>("GET", "/admin/pricing"),
     updatePricing: (body: Pricing) => request<Pricing>("PUT", "/admin/pricing", { body }),
   },

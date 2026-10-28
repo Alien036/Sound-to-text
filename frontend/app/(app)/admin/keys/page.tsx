@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/primitives";
 import { api, errorMessage } from "@/lib/api";
 import type { LicenseKey } from "@/lib/types";
+import { useAuth } from "@/lib/hooks/use-auth";
 import { usePricing } from "@/lib/hooks/use-me";
 import { cn, formatCredits, formatDate } from "@/lib/utils";
 
@@ -78,6 +79,7 @@ export default function AdminKeysPage() {
                       <Th className="text-right">Kredi</Th>
                       <Th>Durum</Th>
                       <Th>Not</Th>
+                      <Th>Oluşturan</Th>
                       <Th>Kullanan</Th>
                       <Th className="text-right">Oluşturma</Th>
                       <Th />
@@ -106,8 +108,11 @@ export default function AdminKeysPage() {
 }
 
 function CreateKeys({ onCreated }: { onCreated: () => void }) {
+  const { isOwner } = useAuth();
   const packages = usePricing().packages ?? [];
-  const [pkg, setPkg] = useState<string>("");
+  // Özel miktarlı anahtar yalnızca owner'da; admin paket seçer ve kime verdiğini yazar
+  const [picked, setPkg] = useState<string | null>(null);
+  const pkg = picked ?? (isOwner ? "" : (packages[0]?.id ?? ""));
   const [credits, setCredits] = useState("");
   const [count, setCount] = useState("1");
   const [note, setNote] = useState("");
@@ -140,7 +145,7 @@ function CreateKeys({ onCreated }: { onCreated: () => void }) {
       </CardHeader>
       <CardContent>
         <div className="mb-4 flex flex-wrap gap-2">
-          {[...packages.map((p) => ({ id: p.id, label: `${p.name} · ${formatCredits(p.credits)} kredi` })), { id: "", label: "Özel" }].map(
+          {[...packages.map((p) => ({ id: p.id, label: `${p.name} · ${formatCredits(p.credits)} kredi` })), ...(isOwner ? [{ id: "", label: "Özel" }] : [])].map(
             (o) => (
               <button
                 key={o.id || "custom"}
@@ -189,9 +194,10 @@ function CreateKeys({ onCreated }: { onCreated: () => void }) {
             />
           </div>
           <div>
-            <Label htmlFor="note">Not (isteğe bağlı)</Label>
+            <Label htmlFor="note">{isOwner ? "Not (isteğe bağlı)" : "Kime verildi"}</Label>
             <Input
               id="note"
+              required={!isOwner}
               maxLength={200}
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -261,6 +267,7 @@ function KeyRow({ k, onChanged }: { k: LicenseKey; onChanged: () => void }) {
         <Badge tone={status.tone}>{status.label}</Badge>
       </Td>
       <Td className="max-w-48 truncate text-ink-500">{k.note || "—"}</Td>
+      <Td className="max-w-40 truncate text-ink-500">{k.created_by_email || "—"}</Td>
       <Td className="text-ink-500">
         {k.status === "redeemed" ? (
           <span className="block">
